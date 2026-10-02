@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+{% block title %}归类 - 内容生产中心{% endblock %}
+{% block nav_tree %}active bg-brand-50{% endblock %}
+
+{% block extra_style %}
+<style>
+/* ================================================================
+   格子里的时间轴（周老师 2026-10-03 要）：
+   左边一条竖线贯穿到底，每条素材在轴上有一个节点。
+     · 主轴  .tl::before      —— 分出"几件事"
+     · 节点  .tl-node::before —— 每件事在轴上的位置
+     · 内轴  .tl-rows::before —— 一件事内部的时间流
+     · 行点  .tl-row::before  —— 每条素材，同一天只有第一个是实心
+   ================================================================ */
+.tl { position:relative; padding-left:26px; }
+.tl::before {
+    content:''; position:absolute; left:6px; top:10px; bottom:10px; width:2px; border-radius:99px;
+    background:linear-gradient(180deg,
+        color-mix(in srgb,var(--acc) 75%, transparent),
+        color-mix(in srgb,var(--acc) 30%, transparent) 55%,
+        color-mix(in srgb,var(--acc) 8%, transparent));
+}
+.tl-node { position:relative; margin-bottom:14px; }
+.tl-node::before {
+    content:''; position:absolute; left:-25px; top:12px; width:12px; height:12px; border-radius:50%;
+    background:var(--acc); border:2px solid var(--paper);
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 18%, transparent);
+}
+.tl-node-loose::before {
+    background:var(--paper); box-shadow:none;
+    border-color:color-mix(in srgb,var(--t3) 70%, transparent);
+}
+.tl-meta {
+    display:flex; align-items:baseline; gap:8px; margin:0 0 5px; font-size:11px; color:var(--t3);
+}
+.tl-range { font-weight:700; color:var(--t2); letter-spacing:.02em; }
+.tl-head {
+    display:flex; align-items:center; gap:8px; min-width:0;
+    padding:9px 14px; border-bottom:1px solid var(--line-soft);
+}
+.tl-name {
+    font-size:12px; font-weight:600; color:var(--t1); flex:1; min-width:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.tl-name-loose { color:var(--t2); }
+.tl-rows { position:relative; padding:6px 14px 10px 22px; }
+.tl-rows::before {
+    content:''; position:absolute; left:7px; top:18px; bottom:18px; width:2px; border-radius:99px;
+    background:linear-gradient(180deg,
+        color-mix(in srgb,var(--acc) 45%, transparent),
+        color-mix(in srgb,var(--acc) 22%, transparent));
+}
+.tl-row { position:relative; display:flex; align-items:center; gap:9px; font-size:12px; padding:5px 0; }
+.tl-row::before {
+    content:''; position:absolute; left:-18px; top:50%; transform:translateY(-50%);
+    width:9px; height:9px; border-radius:50%; background:var(--paper);
+    border:2px solid color-mix(in srgb,var(--acc) 60%, transparent);
+}
+.tl-row-first::before {
+    background:var(--acc); border-color:var(--acc);
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 18%, transparent);
+}
+.tl-row-more::before {
+    width:7px; height:7px; left:-17px;
+    border-color:color-mix(in srgb,var(--t2) 75%, transparent);
+    background:color-mix(in srgb,var(--paper) 88%, var(--acc));
+}
+.tl-date { color:var(--t3); flex-shrink:0; white-space:nowrap; }
+.tl-link { color:var(--t1); text-decoration:none; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tl-link:hover { color:var(--acc-d); }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="hero" style="margin-bottom:16px;">
+    <div style="padding:16px 24px 14px;border-bottom:1px solid var(--line-soft);display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+        <div>
+            <p style="font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--acc-d);margin:0 0 2px;">Taxonomy Tree</p>
+            <h1 class="hero-title" style="margin:0;">归类</h1>
+            <p style="font-size:12px;color:var(--t2);margin:6px 0 0;">
+                三层往下走：<b>分类</b>（这件事属于哪一块，按动词判定）→ <b>地域</b>（中国 / 美国 / 其他）→ <b>主体</b>（政府机构或具体公司）。
+                走到底就能看到这个格子里的事，同一件事的历次报道聚成一条线，按时间挂在同一条轴上。
+            </p>
+        </div>
+        <div class="seg">
+            {% for p in periods %}
+            <a href="/tree?period={{ p.key }}{% if cat %}&cat={{ cat|urlencode }}{% endif %}{% if region %}&region={{ region|urlencode }}{% endif %}{% if entity %}&entity={{ entity|urlencode }}{% endif %}"
+               class="{% if period == p.key %}on{% endif %}">{{ p.label }}</a>
+            {% endfor %}
+        </div>
+    </div>
+    <div style="padding:8px 24px;font-size:11px;color:var(--t3);">
+        {{ period_label }}（{{ period_range }}）本层共 <b class="num">{{ total }}</b> 条素材
+        {% if cat %}· 已选分类 <b>{{ cat }}</b>{% endif %}
+        {% if region %}· 已选地域 <b>{{ region }}</b>{% endif %}
+        {% if entity %}· 已选主体 <b>{{ entity }}</b>{% endif %}
+    </div>
+</section>
+
+<!-- ===== 三层导航 ===== -->
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px;">
+    <div class="hero" style="padding:0;">
+        <div style="padding:9px 14px;border-bottom:1px solid var(--line-soft);font-size:11px;font-weight:700;color:var(--t2);">一级 · 分类</div>
+        <div style="padding:8px;display:flex;flex-direction:column;gap:4px;max-height:340px;overflow:auto;">
+            {% for c in cats %}
+            <a href="/tree?period={{ period }}&cat={{ c.name|urlencode }}"
+               class="{% if cat == c.name %}cat-on{% endif %}"
+               style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:8px;text-decoration:none;font-size:12px;{% if cat == c.name %}background:var(--acc);color:#fff;{% else %}color:var(--t1);{% endif %}{% if not c.count %}opacity:.45;{% endif %}">
+                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ c.name }}</span>
+                <span class="num" style="font-weight:700;flex-shrink:0;">{{ c.count }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="hero" style="padding:0;">
+        <div style="padding:9px 14px;border-bottom:1px solid var(--line-soft);font-size:11px;font-weight:700;color:var(--t2);">二级 · 地域</div>
+        <div style="padding:8px;display:flex;flex-direction:column;gap:4px;max-height:340px;overflow:auto;">
+            {% if not cat %}
+            <p style="font-size:12px;color:var(--t3);padding:10px;margin:0;">← 先选左边的分类</p>
+            {% else %}
+            <a href="/tree?period={{ period }}&cat={{ cat|urlencode }}"
+               style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:8px;text-decoration:none;font-size:12px;{% if not region %}background:var(--line-soft);{% endif %}color:var(--t2);">
+                <span>全部地域</span></a>
+            {% for r in regions %}
+            <a href="/tree?period={{ period }}&cat={{ cat|urlencode }}&region={{ r.name|urlencode }}"
+               style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:8px;text-decoration:none;font-size:12px;{% if region == r.name %}background:var(--acc);color:#fff;{% else %}color:var(--t1);{% endif %}">
+                <span>{{ r.name }}</span>
+                <span class="num" style="font-weight:700;">{{ r.count }}</span>
+            </a>
+            {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="hero" style="padding:0;">
+        <div style="padding:9px 14px;border-bottom:1px solid var(--line-soft);font-size:11px;font-weight:700;color:var(--t2);">三级 · 主体</div>
+        <div style="padding:8px;display:flex;flex-direction:column;gap:4px;max-height:340px;overflow:auto;">
+            {% if not region %}
+            <p style="font-size:12px;color:var(--t3);padding:10px;margin:0;">← 先选中间的地域</p>
+            {% elif not entities %}
+            <p style="font-size:12px;color:var(--t3);padding:10px;margin:0;">该格子没有素材</p>
+            {% else %}
+            {% for e in entities %}
+            <a href="/tree?period={{ period }}&cat={{ cat|urlencode }}&region={{ region|urlencode }}&entity={{ e.name|urlencode }}"
+               style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:8px;text-decoration:none;font-size:12px;{% if entity == e.name %}background:var(--acc);color:#fff;{% else %}color:var(--t1);{% endif %}">
+                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ e.name }}</span>
+                <span class="num" style="font-weight:700;flex-shrink:0;">{{ e.count }}</span>
+            </a>
+            {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- ===== 格子内容：一条时间轴 ===== -->
+{% if entity %}
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 12px;flex-wrap:wrap;">
+    <h2 style="font-size:15px;font-weight:700;margin:0;color:var(--t1);">
+        {{ cat }} · {{ region }} · {{ entity }}
+        <span style="font-size:12px;font-weight:400;color:var(--t3);">
+            共 {{ grid_total }} 条 · {{ lines|length }} 条线 + {{ loose|length }} 条散素材
+        </span>
+    </h2>
+    <span style="font-size:11px;color:var(--t3);">勾选多条 → 归为同一件事</span>
+</div>
+
+{% if nodes %}
+<div class="tl" id="grid">
+    {% for nd in nodes %}
+    <div class="tl-node {% if nd.type == 'loose' %}tl-node-loose{% endif %}">
+        <div class="tl-meta">
+            <span class="tl-range num">{{ nd.first_date or '?' }} ~ {{ nd.last_date or '?' }}</span>
+            <span class="tl-cnt">{{ nd.count }} 条</span>
+        </div>
+        <div class="news-card" style="padding:0;">
+            <div class="tl-head">
+                {% if nd.type == 'line' %}
+                <span class="chip chip-lv" style="font-family:monospace;font-size:11px;flex-shrink:0;">{{ nd.event_key }}</span>
+                <span class="tl-name" title="{{ nd.name }}">{{ nd.name }}</span>
+                <button class="btn btn-ghost" style="padding:3px 9px;font-size:11px;flex-shrink:0;"
+                        data-ids='{{ nd.members|map(attribute="id")|list|tojson }}'
+                        onclick="unmergeFromBtn(this)">拆线</button>
+                {% else %}
+                <span class="tl-name tl-name-loose">散素材 · 还没归并成事件</span>
+                {% endif %}
+            </div>
+            <div class="tl-rows">
+                {% for m in nd.members %}
+                {% set same_day = (not loop.first) and loop.previtem is defined and loop.previtem.news_date == m.news_date %}
+                <div class="tl-row {% if same_day %}tl-row-more{% else %}tl-row-first{% endif %}">
+                    <input type="checkbox" class="pick" value="{{ m.id }}" style="flex-shrink:0;">
+                    <span class="num tl-date" title="{{ m.news_date or '无日期' }}">{{ m.news_date or '无日期' }}</span>
+                    <span class="chip chip-src" style="flex-shrink:0;">{{ m.source_name or '未知源' }}</span>
+                    <a href="/topics/{{ m.id }}" class="tl-link" title="{{ m.title }}">{{ m.title }}</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div style="margin-top:14px;font-size:11px;color:var(--t3);line-height:1.7;">
+    轴上的实心点 = 这一天有新的素材；同一件事的多条报道聚在一个节点里。<br>
+    「散素材」是这条时间轴上<b>还没归并</b>的那些单条 —— 勾选多条点右下角按钮，就能把它们归成新的一件事。
+</div>
+{% else %}
+<div class="hero" style="text-align:center;padding:40px 20px;">
+    <p style="color:var(--t2);font-size:13px;margin:0;">这个格子在当前周期里没有素材。</p>
+    <p style="font-size:12px;color:var(--t3);margin-top:8px;">换个周期，或回到上层换个分类。</p>
+</div>
+{% endif %}
+
+{% elif cat and region %}
+<div class="hero" style="text-align:center;padding:36px 20px;">
+    <p style="color:var(--t2);font-size:13px;margin:0;">再选一个主体，就能看到这个格子里的事。</p>
+</div>
+{% elif cat %}
+<div class="hero" style="text-align:center;padding:36px 20px;">
+    <p style="color:var(--t2);font-size:13px;margin:0;">再选一个地域（中国 / 美国 / 其他）。</p>
+</div>
+{% else %}
+<div class="hero" style="text-align:center;padding:36px 20px;">
+    <p style="color:var(--t2);font-size:13px;margin:0;">从左边选一个分类开始。左边数字 = 该分类在当前周期里的素材条数。</p>
+</div>
+{% endif %}
+
+<!-- 手动归并浮条 -->
+<div id="pickBar" style="display:none;position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:40;background:var(--t1);color:#fff;border-radius:99px;padding:8px 10px 8px 18px;align-items:center;gap:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);">
+    <span style="font-size:12px;">已选 <b id="pickCount" class="num">0</b> 条</span>
+    <button class="btn btn-acc" style="padding:6px 14px;" onclick="mergePicked()">归为同一件事</button>
+    <button class="btn btn-ghost" style="padding:6px 12px;border-color:rgba(255,255,255,.4);color:#fff;" onclick="clearPicks()">清除</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function refreshPickBar() {
+    const n = document.querySelectorAll('input.pick:checked').length;
+    const bar = document.getElementById('pickBar');
+    document.getElementById('pickCount').textContent = n;
+    bar.style.display = n ? 'flex' : 'none';
+}
+document.addEventListener('change', function (e) {
+    if (e.target && e.target.classList && e.target.classList.contains('pick')) refreshPickBar();
+});
+function clearPicks() {
+    document.querySelectorAll('input.pick:checked').forEach(c => { c.checked = false; });
+    refreshPickBar();
+}
+async function mergePicked() {
+    const ids = [...document.querySelectorAll('input.pick:checked')].map(c => Number(c.value));
+    if (ids.length < 2) { toast('至少勾选 2 条才能归并'); return; }
+    if (!confirm('把这 ' + ids.length + ' 条归为同一件事？')) return;
+    try {
+        await apiPost('/api/events/merge', { topic_ids: ids, note: '界面手动归并', agent: 'manual' });
+        location.reload();
+    } catch (err) { /* apiPost 已给出中文提示 */ }
+}
+async function unmergeFromBtn(btn) {
+    let ids = [];
+    try { ids = JSON.parse(btn.dataset.ids || '[]'); } catch (e) { ids = []; }
+    if (!ids.length) { toast('这条线没有成员'); return; }
+    if (!confirm('拆掉这条线？' + ids.length + ' 条素材将不再视为同一件事。')) return;
+    try {
+        await apiPost('/api/events/unmerge', { topic_ids: ids, reason: '界面拆线', agent: 'manual' });
+        location.reload();
+    } catch (err) { /* apiPost 已给出中文提示 */ }
+}
+</script>
+{% endblock %}

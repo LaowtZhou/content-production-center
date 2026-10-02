@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}生产任务 - 内容生产中心{% endblock %}
+{% block nav_production %}bg-brand-50 text-brand-700{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl">
+    <div class="flex items-start justify-between gap-4 mb-6">
+        <div>
+            <p class="text-xs font-semibold tracking-[0.16em] text-brand-600 uppercase">Production orchestration</p>
+            <h1 class="text-2xl font-bold text-gray-800 mt-1">创作任务</h1>
+            <p class="text-sm text-gray-500 mt-1">内容中心只编排任务和验收产物；文章属于 Obsidian，发布事实与指标属于 OPC-ERP。</p>
+        </div>
+        <div class="flex gap-2 shrink-0">
+            <button onclick="enableDesktopNotifications()" class="px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50" title="允许系统右下角提醒">开启桌面提醒</button>
+            <button onclick="syncOpc()" class="px-3 py-2 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50">同步 OPC 结果</button>
+            {% if settings.production_mode == 'autonomous' %}
+            <button onclick="autoQueue(this)" title="从已评分且尚未派单的选题中按综合评分生成，重复点击不会重复创建" class="px-3 py-2 text-sm bg-brand-600 text-white rounded-lg hover:bg-brand-700">生成今日自主任务</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-3 mb-5">
+        <div class="rounded-xl border border-gray-200 bg-white p-4">
+            <div class="text-xs text-gray-500">当前模式</div>
+            <div class="font-semibold text-gray-800 mt-1">{% if settings.production_mode == 'autonomous' %}自主生产{% else %}人工选择{% endif %}</div>
+            <p class="text-xs text-gray-400 mt-1">每日上限 {{ settings.daily_task_limit }} 篇；只创建任务契约，不自动发布。</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4">
+            <div class="text-xs text-gray-500">任务契约目录</div>
+            <div class="font-mono text-xs text-gray-700 mt-1 break-all">{{ settings.task_contract_dir or '软件目录 data/task-contracts' }}</div>
+            <p class="text-xs text-gray-400 mt-1">供 Codex 自动化领取和执行。</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4">
+            <div class="text-xs text-gray-500">Obsidian / Skills</div>
+            <div class="text-xs text-gray-700 mt-1">{% if settings.content_vault_dir and settings.content_skills_dir %}已配置路径，回传会校验产物。{% else %}尚未配置，发布稿回传将无法验收。{% endif %}</div>
+            <a href="/settings" class="inline-block text-xs text-brand-600 mt-2 hover:underline">前往配置 →</a>
+        </div>
+    </div>
+
+    {% if tasks %}
+    <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <h2 class="font-semibold text-gray-800">任务队列</h2>
+            <span class="text-xs text-gray-400">{{ tasks|length }} 个任务</span>
+        </div>
+        <div class="divide-y divide-gray-100">
+            {% for task in tasks %}
+            <div class="px-5 py-4 flex gap-4 items-start">
+                <div class="w-24 shrink-0">
+                    <span class="inline-block text-xs px-2 py-1 rounded {{ statusClass(task.status) }}">{{ statusLabel(task.status) }}</span>
+                    <div class="text-[11px] text-gray-400 mt-2">{{ task.mode == 'autonomous' and '自主' or '人工' }}</div>
+                </div>
+                <div class="min-w-0 flex-1">
+                    <div class="flex gap-2 items-center flex-wrap">
+                        <h3 class="font-medium text-gray-800">{{ task.topic_title }}</h3>
+                        {% if task.latest_score is not none %}<span class="text-xs score-high px-1.5 py-0.5 rounded">{{ '%.1f'|format(task.latest_score) }}</span>{% endif %}
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1">{{ task.requested_platform }} · {{ task.executor_hint or 'Codex' }} · {{ task.created_at[:16] }}</div>
+                    {% if task.blocked_reason %}<p class="text-xs text-red-600 mt-2">阻塞：{{ task.blocked_reason }}</p>{% endif %}
+                    {% if task.vault_project_path %}<p class="text-xs text-gray-500 mt-2">Obsidian 项目：<span class="font-mono">{{ task.vault_project_path }}</span></p>{% endif %}
+                    {% if task.contract_path %}<p class="text-xs text-gray-400 mt-2">契约：<span class="font-mono break-all">{{ task.contract_path }}</span></p>{% endif %}
+                    {% if task.stage_summary and task.stage_summary.stages %}
+                    <div class="mt-3 flex flex-wrap gap-1.5">
+                        {% for stage in task.stage_summary.stages %}
+                        <button type="button" class="stage-audit-trigger" data-task="{{ task.id }}" data-stage="{{ stage.key }}" aria-haspopup="dialog" aria-label="{{ stage.label }}：查看执行记录">
+                        <span class="text-[11px] px-2 py-1 rounded border {% if stage.status == 'completed' %}border-emerald-200 bg-emerald-50 text-emerald-700{% elif stage.status == 'running' %}border-blue-200 bg-blue-50 text-blue-700{% elif stage.status == 'failed' %}border-red-200 bg-red-50 text-red-700{% else %}border-gray-200 bg-gray-50 text-gray-500{% endif %}" title="{{ stage.error_detail or '' }}">{{ stage.label }} · {% if stage.status == 'completed' %}完成{% elif stage.status == 'running' %}执行中{% elif stage.status == 'failed' %}失败{% else %}待执行{% endif %}</span>
+                        </button>
+                        {% endfor %}
+                    </div>
+                    {% for stage in task.stage_summary.stages %}
+                    {% if stage.status == 'failed' and stage.error_detail %}
+                    <p class="text-xs text-red-600 mt-2">{{ stage.label }}：{{ stage.error_detail }}</p>
+                    {% endif %}
+                    {% endfor %}
+                    {% endif %}
+                </div>
+                <button onclick="copyText({{ task.contract_path|tojson }})" class="text-xs px-2.5 py-1.5 border border-gray-200 rounded hover:bg-gray-50 text-gray-600 shrink-0">复制契约路径</button>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="rounded-xl border border-dashed border-gray-300 bg-white py-16 text-center">
+        <div class="text-3xl">⚙️</div>
+        <p class="font-medium text-gray-700 mt-3">当前没有创作任务</p>
+        <p class="text-sm text-gray-400 mt-1">在选题看板确认一个已评分题材，或切换到自主模式后生成今日任务。</p>
+    </div>
+    {% endif %}
+
+    <section class="mt-6 bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <div><h2 class="font-semibold text-gray-800">OPC-ERP 发布观察</h2><p class="text-xs text-gray-400 mt-0.5">只读同步；标题不同的发布内容由你在需要时手动关联任务。</p></div>
+            <a href="/reviews" class="text-xs text-brand-600 hover:underline">查看复盘候选 →</a>
+        </div>
+        <div class="px-5 py-3 bg-gray-50 border-b border-gray-100">
+            <div class="flex items-center justify-between gap-3">
+                <div><h3 class="text-sm font-medium text-gray-800">自动分析提示</h3><p class="text-xs text-gray-400 mt-0.5">系统只根据 ERP 事实生成建议，不修改原始指标。</p></div>
+                <span id="feedbackCount" class="text-xs px-2 py-1 rounded bg-amber-50 text-amber-700">读取中...</span>
+            </div>
+            <div id="feedbackSignalList" class="mt-2 space-y-2"><p class="text-xs text-gray-400">点击同步后生成内容决策提示。</p></div>
+        </div>
+        <div id="publicationList" class="divide-y divide-gray-100"><p class="p-5 text-sm text-gray-400">点击“同步 OPC 结果”后加载。</p></div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/stage-audit.js" defer></script>
+<script>
+const productionPageOpenedAt = new Date().toISOString();
+const notificationPollMs = 10000;
+let notificationPollBusy = false;
+
+async function enableDesktopNotifications() {
+    if (!('Notification' in window)) {
+        showDesktopNotice('浏览器不支持系统提醒', '页面右下角提醒仍会正常显示。');
+        return;
+    }
+    const permission = await Notification.requestPermission();
+    showDesktopNotice(permission === 'granted' ? '桌面提醒已开启' : '桌面提醒未开启', permission === 'granted' ? '发布稿完成时会尝试发出系统通知。' : '页面右下角提醒仍会正常显示。');
+}
+
+async function pollPublishReadyNotifications() {
+    if (notificationPollBusy) return;
+    notificationPollBusy = true;
+    try {
+        const response = await fetch(`/api/production/notifications?since=${encodeURIComponent(productionPageOpenedAt)}&limit=20`, { cache: 'no-store' });
+        if (!response.ok) return;
+        const rows = await response.json();
+        const seenKey = 'content-center-publish-ready-notifications-v1';
+        const seen = new Set(JSON.parse(localStorage.getItem(seenKey) || '[]'));
+        let shouldRefresh = false;
+        for (const row of rows) {
+            if (seen.has(row.id)) continue;
+            seen.add(row.id);
+            notifyDesktop('公众号文章已准备好', row.topic_title || '有新的发布稿可以审核。', '/production');
+            shouldRefresh = true;
+        }
+        localStorage.setItem(seenKey, JSON.stringify(Array.from(seen).slice(-100)));
+        if (shouldRefresh && !document.querySelector('dialog[open]')) window.setTimeout(() => window.location.reload(), 1200);
+    } catch (error) {
+        // 页面提醒失败不影响任务本身；下一轮继续轮询。
+    } finally {
+        notificationPollBusy = false;
+    }
+}
+
+function copyText(value) {
+    if (!value) { alert('该任务尚未生成契约文件'); return; }
+    navigator.clipboard.writeText(value).then(() => alert('已复制任务契约路径'));
+}
+async function autoQueue(button) {
+    if (button && button.disabled) return;
+    if (button) { button.disabled = true; button.textContent = '生成中...'; }
+    try {
+        const response = await fetch('/api/production/tasks/auto-queue', { method: 'POST' });
+        const result = await response.json();
+        alert(result.message || result.detail || '操作完成');
+        if (response.ok) location.reload();
+        else if (button) { button.disabled = false; button.textContent = '生成今日自主任务'; }
+    } catch (error) {
+        alert('生成失败，请稍后重试');
+        if (button) { button.disabled = false; button.textContent = '生成今日自主任务'; }
+    }
+}
+async function syncOpc() {
+    const response = await fetch('/api/production/feedback/sync', { method: 'POST' });
+    const result = await response.json();
+    alert(result.message || result.detail || (response.ok ? `已同步 ${result.sync.received || 0} 条发布观察并完成分析` : '同步失败'));
+    if (response.ok) { loadPublications(); loadFeedbackSignals(); }
+}
+async function loadPublications() {
+    const response = await fetch('/api/production/publications?limit=20');
+    const rows = await response.json();
+    const container = document.getElementById('publicationList');
+    if (!Array.isArray(rows) || rows.length === 0) { container.innerHTML = '<p class="p-5 text-sm text-gray-400">暂无已同步发布结果。</p>'; return; }
+    container.innerHTML = rows.map(row => `<div class="p-4 flex gap-3 items-start"><div class="flex-1 min-w-0"><div class="font-medium text-sm text-gray-800">${row.title || '未命名内容'}</div><div class="text-xs text-gray-500 mt-1">${row.platform || '未知平台'} · ${row.published_at || '未知发布时间'} · ${row.status}</div><div class="text-xs text-gray-400 mt-1">阅读/播放：${row.metrics_json ? JSON.parse(row.metrics_json).latest_read_count || JSON.parse(row.metrics_json).latest_play_count || '—' : '—'}</div></div>${row.status !== 'review_candidate' ? `<button class="text-xs px-2.5 py-1.5 border border-amber-300 text-amber-700 rounded hover:bg-amber-50" onclick="flagReview('${row.id}')">标记复盘</button>` : '<span class="text-xs text-amber-700">已入候选</span>'}</div>`).join('');
+}
+async function flagReview(id) {
+    const reason = prompt('为什么这篇值得复盘？');
+    if (!reason) return;
+    const response = await fetch(`/api/production/publications/${id}/flag-review`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason})});
+    const result = await response.json(); alert(result.message || result.detail || '已标记'); if (response.ok) loadPublications();
+}
+async function loadFeedbackSignals() {
+    const [summaryResponse, signalResponse] = await Promise.all([
+        fetch('/api/production/feedback/summary'),
+        fetch('/api/production/feedback?status=open&limit=5')
+    ]);
+    if (!summaryResponse.ok || !signalResponse.ok) return;
+    const summary = await summaryResponse.json();
+    const rows = await signalResponse.json();
+    document.getElementById('feedbackCount').textContent = `待处理 ${summary.counts.open || 0} 条`;
+    const archiveBtn = document.getElementById('archiveOpenBtn');
+    if (archiveBtn) archiveBtn.classList.toggle('hidden', !(summary.counts.open > 0));
+    const container = document.getElementById('feedbackSignalList');
+    if (!rows.length) { container.innerHTML = '<p class="text-xs text-gray-400">暂无待处理提示。</p>'; return; }
+    container.innerHTML = rows.map(row => `<div class="flex items-start justify-between gap-3 bg-white border border-gray-200 rounded px-3 py-2"><div class="min-w-0"><div class="text-xs font-medium text-gray-700 truncate" title="${esc(row.publication_title)}">${esc(row.headline)} · ${esc(row.publication_title)}</div><div class="text-xs text-gray-500 mt-1">${esc(row.detail)}</div><div class="text-xs text-brand-700 mt-1">建议：${esc(row.suggested_action)}</div></div><div class="flex gap-1 shrink-0"><button onclick="createFeedbackReview('${row.id}')" class="text-xs px-2 py-1 border border-amber-300 text-amber-700 rounded">复盘</button><button onclick="handleFeedback('${row.id}','accepted')" class="text-xs px-2 py-1 text-white bg-brand-600 rounded">接受</button></div></div>`).join('');
+}
+async function handleFeedback(id, status) {
+    const response = await fetch('/api/production/feedback/' + id + '/handle', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status,handled_by:'human'})});
+    const result = await response.json(); alert(result.message || result.detail || '已处理'); if (response.ok) loadFeedbackSignals();
+}
+async function createFeedbackReview(id) {
+    const response = await fetch('/api/production/feedback/' + id + '/create-review', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({created_by:'human'})});
+    const result = await response.json(); alert(result.message || result.detail || (response.ok ? '已创建复盘候选' : '操作失败')); if (response.ok) { loadFeedbackSignals(); loadPublications(); }
+}
+function esc(value) { return String(value || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m])); }
+loadPublications();
+loadFeedbackSignals();
+pollPublishReadyNotifications();
+setInterval(pollPublishReadyNotifications, notificationPollMs);
+</script>
+{% endblock %}

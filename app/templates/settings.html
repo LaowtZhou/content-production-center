@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}系统设置{% endblock %}
+{% block nav_settings %}bg-brand-50 text-brand-700 font-medium{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl">
+    <h1 class="text-xl font-bold text-gray-800 mb-6">系统设置</h1>
+
+    <form onsubmit="saveSettings(event)" class="space-y-6">
+        <!-- 文件监听 -->
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h2 class="text-sm font-semibold text-gray-700 mb-3">文件监听</h2>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">OpenClaw输出目录</label>
+                    <input type="text" name="openclaw_watch_dir" value="{{ settings.openclaw_watch_dir }}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm font-mono" placeholder="如：C:\Users\OpenClaw\output">
+                    <p class="text-xs text-gray-400 mt-1">生产中心会自动监听此目录，检测到新文件时自动解析选题</p>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">任务契约目录</label>
+                    <input type="text" name="task_contract_dir" value="{{ settings.task_contract_dir }}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm font-mono" placeholder="留空则保存到内容生产中心/data/task-contracts">
+                    <p class="text-xs text-gray-400 mt-1">这里保存给 Codex 自动化消费的任务契约；不放原始新闻，也不把文章项目放进临时目录。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- LLM配置 -->
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-sm font-semibold text-gray-700">LLM评分配置</h2>
+                <span class="text-xs px-2 py-0.5 rounded bg-amber-50 text-amber-700">可选</span>
+            </div>
+            <p class="text-xs text-gray-500 mb-3">不配置API Key时，选题保持待评分状态，由Agent通过API直接提交评分。配置后则自动调用LLM评分。</p>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">API Base URL</label>
+                    <input type="text" name="llm_api_base" value="{{ settings.llm_api_base }}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm font-mono">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">API Key</label>
+                    <input type="password" name="llm_api_key" value="{{ settings.llm_api_key }}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm font-mono" placeholder="sk-...">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">模型</label>
+                    <input type="text" name="llm_model" value="{{ settings.llm_model }}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm font-mono" placeholder="gpt-4o-mini">
+                    <p class="text-xs text-gray-400 mt-1">支持OpenAI兼容API（OpenAI、Azure、代理、本地模型等）</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 评分权重 -->
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h2 class="text-sm font-semibold text-gray-700 mb-3">评分权重</h2>
+            <p class="text-xs text-gray-500 mb-3">三个权重之和应为1.0</p>
+            <div class="grid grid-cols-3 gap-3">
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">流量潜力</label>
+                    <input type="number" name="traffic_weight" step="0.1" min="0" max="1" value="{{ settings.traffic_weight }}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">观点匹配</label>
+                    <input type="number" name="opinion_weight" step="0.1" min="0" max="1" value="{{ settings.opinion_weight }}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">新颖度</label>
+                    <input type="number" name="novelty_weight" step="0.1" min="0" max="1" value="{{ settings.novelty_weight }}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+                </div>
+            </div>
+        </div>
+
+        <!-- 其他设置 -->
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h2 class="text-sm font-semibold text-gray-700 mb-3">其他</h2>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">选题过期天数</label>
+                    <input type="number" name="expire_days" min="1" max="90" value="{{ settings.expire_days }}" class="w-32 px-3 py-2 border border-gray-300 rounded text-sm">
+                    <p class="text-xs text-gray-400 mt-1">超过此天数未被选中的已评分选题自动标记为过期</p>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">OPC-ERP API地址（可选）</label>
+                    <input type="text" name="opc_erp_api_base" value="{{ settings.opc_erp_api_base }}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm font-mono" placeholder="http://127.0.0.1:xxxx">
+                    <p class="text-xs text-gray-400 mt-1">内容中心只读取发布结果和指标，不向 OPC-ERP 写入创作任务。</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg border border-gray-200 p-5">
+            <h2 class="text-sm font-semibold text-gray-700 mb-3">创作编排</h2>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">生产模式</label>
+                    <select name="production_mode" class="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-white">
+                        <option value="manual" {% if settings.production_mode != 'autonomous' %}selected{% endif %}>人工选择：你确认选题后创建任务</option>
+                        <option value="autonomous" {% if settings.production_mode == 'autonomous' %}selected{% endif %}>自主生产：每日自动生成最高 1-3 个任务</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">每日自主任务上限</label>
+                    <input type="number" name="daily_task_limit" min="1" max="3" value="{{ settings.daily_task_limit }}" class="w-32 px-3 py-2 border border-gray-300 rounded text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Obsidian 内容 vault 根目录</label>
+                    <input type="text" name="content_vault_dir" value="{{ settings.content_vault_dir }}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm font-mono" placeholder="例如：C:\AI_workspace\AI内容创作">
+                    <p class="text-xs text-gray-400 mt-1">发布稿回传时，项目目录、主稿和图片必须在此目录内。</p>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">内容 SKILL 目录</label>
+                    <input type="text" name="content_skills_dir" value="{{ settings.content_skills_dir }}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm font-mono" placeholder="例如：C:\AI_workspace\AI内容创作\.agents\skills">
+                    <p class="text-xs text-gray-400 mt-1">每个新任务会保存这套 Skill 的文件哈希版本；系统记录声明与产物证据，不能伪造“已使用”的证明。</p>
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">内容中心回传地址</label>
+                    <input type="text" name="production_center_base_url" value="{{ settings.production_center_base_url }}" class="w-full px-3 py-2 border border-gray-300 rounded text-sm font-mono" placeholder="http://127.0.0.1:8774">
+                </div>
+            </div>
+        </div>
+
+        <div class="flex gap-2">
+            <button type="submit" class="px-6 py-2 bg-brand-500 text-white text-sm rounded hover:bg-brand-600">保存设置</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function saveSettings(e) {
+    e.preventDefault();
+    const form = e.target;
+    const body = {};
+    const fields = ['openclaw_watch_dir', 'task_contract_dir', 'llm_api_base', 'llm_api_key',
+                    'llm_model', 'traffic_weight', 'opinion_weight', 'novelty_weight',
+                    'expire_days', 'opc_erp_api_base', 'production_mode', 'daily_task_limit',
+                    'content_vault_dir', 'content_skills_dir', 'production_center_base_url'];
+    for (const f of fields) {
+        body[f] = form[f].value;
+    }
+    const resp = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+    const result = await resp.json();
+    alert(result.message || '已保存');
+}
+</script>
+{% endblock %}

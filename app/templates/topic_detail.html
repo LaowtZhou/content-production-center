@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+{% block title %}{{ topic.title }} - 选题详情{% endblock %}
+{% block nav_dashboard %}text-gray-700 hover:bg-gray-100{% endblock %}
+
+{% block content %}
+<!-- 返回 + 标题 -->
+<div class="mb-4">
+    <a href="/{% if topic.news_date %}?news_date={{ topic.news_date }}{% endif %}" class="text-xs text-gray-400 hover:text-brand-600">← 返回看板</a>
+</div>
+
+<!-- 标题区 -->
+<div class="bg-white rounded-lg border border-gray-200 p-5 mb-4">
+    <div class="flex items-start justify-between gap-4">
+        <div class="flex-1">
+            <h1 class="text-xl font-bold text-gray-800 leading-snug">{{ topic.title }}</h1>
+            <div class="flex items-center gap-2 mt-3 flex-wrap">
+                <span class="text-xs px-2 py-0.5 rounded {{ statusClass(topic.status) }}">{{ statusLabel(topic.status) }}</span>
+                {% if topic.source_name %}
+                <span class="text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">{{ topic.source_name }}</span>
+                {% endif %}
+                {% if topic.source_level %}
+                <span class="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-500">{{ topic.source_level }}</span>
+                {% endif %}
+                {% if topic.news_date %}
+                <span class="text-xs text-gray-400">新闻日期: {{ topic.news_date }}</span>
+                {% endif %}
+                {% if topic.published_date %}
+                <span class="text-xs text-gray-400">发布: {{ topic.published_date }}</span>
+                {% endif %}
+                <span class="text-xs text-gray-400">来源: {{ sourceLabel(topic.source_type) }}</span>
+            </div>
+        </div>
+        {% if latest_score and latest_score.total_score is not none %}
+        <div class="text-center flex-shrink-0">
+            <div class="text-3xl font-bold {{ scoreClass(latest_score.total_score) }} px-3 py-1 rounded">{{ formatScore(latest_score.total_score) }}</div>
+            <div class="text-xs text-gray-400 mt-1">综合分</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- 操作按钮：素材只有一件事要人决定——用没用 -->
+    <div class="flex gap-3 mt-4 pt-4 border-t border-gray-100 flex-wrap items-center">
+        <label class="usage-check" title="拿这条素材写过内容就勾上">
+            <input type="checkbox" {% if topic.status == 'used' %}checked{% endif %}
+                   onchange="toggleUsage({{ topic.id }}, this.checked)">
+            <span>我用了</span>
+        </label>
+        {% if topic.status == 'dropped' %}
+        <button onclick="setUsage({{ topic.id }}, 'unused')" class="px-4 py-2 bg-white border border-gray-300 text-gray-600 rounded text-sm hover:bg-gray-50">收回成未用</button>
+        {% else %}
+        <button onclick="showUsageDroppedModal({{ topic.id }})" class="px-4 py-2 bg-white border border-red-300 text-red-600 rounded text-sm hover:bg-red-50">不用了</button>
+        {% endif %}
+        {% if topic.abandoned_reason %}
+        <span class="text-xs text-gray-400">弃用原因：{{ topic.abandoned_reason }}</span>
+        {% endif %}
+        {% if topic.original_url %}
+        <a href="{{ topic.original_url }}" target="_blank" class="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded text-sm hover:bg-gray-50">🔗 原文链接</a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="grid grid-cols-3 gap-4">
+<!-- 左侧：内容 + 评分 -->
+<div class="col-span-2 space-y-4">
+    <!-- 新闻内容 -->
+    {% if topic.raw_content %}
+    <div class="bg-white rounded-lg border border-gray-200 p-5">
+        <h2 class="text-sm font-semibold text-gray-700 mb-3">新闻内容</h2>
+        <div class="prose prose-sm max-w-none text-gray-600 whitespace-pre-wrap">{{ topic.raw_content }}</div>
+    </div>
+    {% endif %}
+
+    {% if topic.summary and not topic.raw_content %}
+    <div class="bg-white rounded-lg border border-gray-200 p-5">
+        <h2 class="text-sm font-semibold text-gray-700 mb-3">摘要</h2>
+        <p class="text-sm text-gray-600">{{ topic.summary }}</p>
+    </div>
+    {% endif %}
+
+    <!-- 评分详情 -->
+    {% if latest_score %}
+    <div class="bg-white rounded-lg border border-gray-200 p-5">
+        <h2 class="text-sm font-semibold text-gray-700 mb-3">评分详情</h2>
+        <div class="grid grid-cols-3 gap-3 mb-4">
+            <div class="text-center bg-gray-50 rounded p-3">
+                <div class="text-2xl font-bold {{ scoreClass(latest_score.traffic_score) }}">{{ formatScore(latest_score.traffic_score) }}</div>
+                <div class="text-xs text-gray-500 mt-1">流量潜力</div>
+            </div>
+            <div class="text-center bg-gray-50 rounded p-3">
+                <div class="text-2xl font-bold {{ scoreClass(latest_score.opinion_score) }}">{{ formatScore(latest_score.opinion_score) }}</div>
+                <div class="text-xs text-gray-500 mt-1">观点匹配</div>
+            </div>
+            <div class="text-center bg-gray-50 rounded p-3">
+                <div class="text-2xl font-bold {{ scoreClass(latest_score.novelty_score) }}">{{ formatScore(latest_score.novelty_score) }}</div>
+                <div class="text-xs text-gray-500 mt-1">新颖度</div>
+            </div>
+        </div>
+
+        {% if latest_score.traffic_reasoning or latest_score.opinion_reasoning or latest_score.novelty_reasoning %}
+        <div class="space-y-2 text-xs">
+            {% if latest_score.traffic_reasoning %}
+            <div><span class="font-medium text-gray-500">流量理由:</span> <span class="text-gray-600">{{ latest_score.traffic_reasoning }}</span></div>
+            {% endif %}
+            {% if latest_score.opinion_reasoning %}
+            <div><span class="font-medium text-gray-500">观点理由:</span> <span class="text-gray-600">{{ latest_score.opinion_reasoning }}</span></div>
+            {% endif %}
+            {% if latest_score.novelty_reasoning %}
+            <div><span class="font-medium text-gray-500">新颖度理由:</span> <span class="text-gray-600">{{ latest_score.novelty_reasoning }}</span></div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if latest_score.recommended_format or latest_score.key_angle %}
+        <div class="mt-3 pt-3 border-t border-gray-100 text-xs space-y-1">
+            {% if latest_score.recommended_format %}
+            <div><span class="font-medium text-gray-500">推荐形式:</span> 
+                {% if latest_score.recommended_format == 'video' %}视频
+                {% elif latest_score.recommended_format == 'article' %}文章
+                {% elif latest_score.recommended_format == 'xiaohongshu' %}小红书
+                {% else %}{{ latest_score.recommended_format }}{% endif %}
+            </div>
+            {% endif %}
+            {% if latest_score.key_angle %}
+            <div><span class="font-medium text-gray-500">建议角度:</span> <span class="text-gray-600">{{ latest_score.key_angle }}</span></div>
+            {% endif %}
+            <div class="text-gray-400">评分者: {{ latest_score.model_used }} · {{ latest_score.scored_at[:16] }}</div>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- 评分历史 -->
+    {% if scores and scores|length > 1 %}
+    <div class="bg-white rounded-lg border border-gray-200 p-5">
+        <h2 class="text-sm font-semibold text-gray-700 mb-3">评分历史 ({{ scores|length }} 次)</h2>
+        <div class="space-y-2">
+            {% for s in scores %}
+            <div class="flex items-center gap-3 text-xs py-2 {% if not loop.last %}border-b border-gray-100{% endif %}">
+                <span class="font-bold {{ scoreClass(s.total_score) }} px-2 py-0.5 rounded">{{ formatScore(s.total_score) }}</span>
+                <span class="text-gray-500">流{{ formatScore(s.traffic_score) }} / 观{{ formatScore(s.opinion_score) }} / 新{{ formatScore(s.novelty_score) }}</span>
+                <span class="text-gray-400">{{ s.model_used }}</span>
+                <span class="text-gray-400">{{ s.scored_at[:16] }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 创作任务 -->
+    {% if production_tasks %}
+    <div class="bg-white rounded-lg border border-gray-200 p-5">
+        <h2 class="text-sm font-semibold text-gray-700 mb-3">创作任务与回传</h2>
+        {% for task in production_tasks %}
+        <div class="text-xs text-gray-600 py-2 {% if not loop.last %}border-b border-gray-100{% endif %}">
+            <span class="px-1.5 py-0.5 rounded {{ statusClass(task.status) }}">{{ statusLabel(task.status) }}</span>
+            <span class="ml-2">{{ task.mode == 'autonomous' and '自主' or '人工' }} · {{ task.created_at[:16] }}</span>
+            {% if task.vault_project_path %}<div class="mt-1 font-mono text-gray-500">{{ task.vault_project_path }}</div>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- 右侧：事件时间线 + Agent活动 -->
+<div class="space-y-4">
+    <!-- 事件时间线 -->
+    <div class="bg-white rounded-lg border border-gray-200 p-4">
+        <h2 class="text-sm font-semibold text-gray-700 mb-3">事件时间线</h2>
+        <div class="space-y-3">
+            {% for e in events %}
+            <div class="flex gap-2 text-xs">
+                <div class="flex-shrink-0 w-2 h-2 rounded-full bg-brand-500 mt-1"></div>
+                <div class="flex-1">
+                    <div class="font-medium text-gray-700">{{ e.event_type }}</div>
+                    <div class="text-gray-400">{{ e.event_at[:16] }}</div>
+                    {% if e.metadata and e.metadata != '{}' %}
+                    <div class="text-gray-500 mt-0.5 text-[10px]">{{ e.metadata }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Agent活动 -->
+    {% if activities %}
+    <div class="bg-white rounded-lg border border-gray-200 p-4">
+        <h2 class="text-sm font-semibold text-gray-700 mb-3">Agent 活动</h2>
+        <div class="space-y-2">
+            {% for a in activities %}
+            <div class="text-xs">
+                <div class="flex items-center gap-2">
+                    <span class="font-medium text-gray-700">{{ a.agent_name }}</span>
+                    <span class="text-gray-400">{{ a.activity_type }}</span>
+                </div>
+                <div class="text-gray-500 mt-0.5">{{ a.summary }}</div>
+                <div class="text-gray-400">{{ a.created_at[:16] }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 同日新闻 -->
+    {% if related %}
+    <div class="bg-white rounded-lg border border-gray-200 p-4">
+        <h2 class="text-sm font-semibold text-gray-700 mb-3">同日新闻 ({{ related|length }})</h2>
+        <div class="space-y-1">
+            {% for r in related %}
+            <a href="/topics/{{ r.id }}" class="block text-xs text-gray-600 hover:text-brand-600 py-1">
+                <span class="text-gray-400 mr-1">#{{ r.id }}</span>
+                {{ r.title[:35] }}{% if r.title|length > 35 %}...{% endif %}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 元数据 -->
+    <div class="bg-white rounded-lg border border-gray-200 p-4">
+        <h2 class="text-sm font-semibold text-gray-700 mb-3">元数据</h2>
+        <div class="space-y-1 text-xs text-gray-500">
+            <div>ID: {{ topic.id }}</div>
+            <div>采集时间: {{ topic.created_at[:16] }}</div>
+            <div>来源类型: {{ sourceLabel(topic.source_type) }}</div>
+            {% if topic.source_name %}<div>来源名称: {{ topic.source_name }}</div>{% endif %}
+            {% if topic.source_author %}<div>作者: {{ topic.source_author }}</div>{% endif %}
+            {% if topic.published_date %}<div>发布时间: {{ topic.published_date }}</div>{% endif %}
+            {% if topic.original_url %}<div class="break-all">原文: <a href="{{ topic.original_url }}" target="_blank" class="text-brand-500">{{ topic.original_url[:50] }}...</a></div>{% endif %}
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+// 素材使用状态：未用 / 已用 / 弃用。这是本页唯一会写库的操作。
+async function setUsage(id, target) {
+    const resp = await apiPost('/api/topics/' + id + '/usage', { status: target });
+    alert(resp.message || '已更新');
+    location.reload();
+}
+
+function toggleUsage(id, checked) {
+    setUsage(id, checked ? 'used' : 'unused');
+}
+</script>
+{% endblock %}

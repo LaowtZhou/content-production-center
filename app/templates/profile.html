@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}专业画像{% endblock %}
+{% block nav_profile %}bg-brand-50 text-brand-700 font-medium{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <h1 class="text-xl font-bold text-gray-800 mb-2">专业画像</h1>
+    <p class="text-sm text-gray-500 mb-6">定义你的专业领域。评分引擎会用这些信息判断选题的"观点匹配度"——你是否有独特观点可输出。</p>
+
+    <!-- 添加专业领域 -->
+    <form onsubmit="addProfile(event)" class="bg-white rounded-lg border border-gray-200 p-5 mb-6 space-y-3">
+        <h2 class="text-sm font-semibold text-gray-700">添加专业领域</h2>
+        <div class="grid grid-cols-2 gap-3">
+            <input type="text" name="area" required placeholder="领域名称（如：大模型）" class="px-3 py-2 border border-gray-300 rounded text-sm">
+            <input type="number" name="weight" step="0.1" min="0" max="1" value="0.5" placeholder="权重 0-1" class="px-3 py-2 border border-gray-300 rounded text-sm">
+        </div>
+        <textarea name="description" rows="2" placeholder="领域描述" class="w-full px-3 py-2 border border-gray-300 rounded text-sm"></textarea>
+        <input type="text" name="keywords" placeholder="关键词（逗号分隔，如：GPT, Claude, Gemini）" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+        <button type="submit" class="px-4 py-2 bg-brand-500 text-white text-sm rounded hover:bg-brand-600">添加</button>
+    </form>
+
+    <!-- 专业领域列表 -->
+    {% if profiles %}
+    <div class="space-y-3">
+        {% for p in profiles %}
+        <div class="bg-white rounded-lg border border-gray-200 p-4">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="font-medium text-gray-800">{{ p.area }}</span>
+                        <span class="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">权重 {{ p.weight }}</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-2">{{ p.description or '无描述' }}</p>
+                    <div class="flex flex-wrap gap-1">
+                        {% set kws = p.keywords | from_json if p.keywords else [] %}
+                        {% for kw in kws %}
+                        <span class="text-xs px-2 py-0.5 bg-brand-50 text-brand-700 rounded">{{ kw }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                <button onclick="deleteProfile({{ p.id }})" class="text-xs text-red-500 hover:underline ml-2">删除</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-12 text-gray-400">暂无专业画像数据</div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 注册Jinja2自定义过滤器
+async function addProfile(e) {
+    e.preventDefault();
+    const form = e.target;
+    const kwsStr = form.keywords.value.trim();
+    const kws = kwsStr ? kwsStr.split(',').map(t => t.trim()).filter(t => t) : [];
+    const body = {
+        area: form.area.value,
+        description: form.description.value,
+        weight: parseFloat(form.weight.value) || 0.5,
+        keywords: kws,
+    };
+    await apiPost('/api/profile', body);
+    location.reload();
+}
+
+async function deleteProfile(id) {
+    if (!confirm('确定删除这个专业领域？')) return;
+    await fetch(`/api/profile/${id}`, { method: 'DELETE' });
+    location.reload();
+}
+</script>
+{% endblock %}

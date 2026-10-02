@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="5gyz4Wcq44Zjm8ZqvcPkos">
+<head data-page-node-id="JoTG4QZ3U2woHFnStqPR6U">
+<meta charset="UTF-8" data-page-node-id="xLhdQDGVw9Aciq1RCYaYGz">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="UBB8P35toGzDjDKSNQpDyf">
+<title>选题看板 · 视觉原型 V2</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        ink: { 950: '#0C1222', 900: '#111A30', 800: '#1B2745' },
+        paper: '#F7F6F3',
+        brand: { 50:'#EEF0FF',100:'#E0E4FF',500:'#5B5FE9',600:'#4F46E5',700:'#4338CA' }
+      },
+      fontFamily: {
+        num: ['ui-monospace','SFMono-Regular','Menlo','Consolas','monospace']
+      }
+    }
+  }
+}
+</script>
+<style>
+  :root {
+    --line: #E8E6E0;
+    --t1: #1C1B1A;
+    --t2: #5F5B54;
+    --t3: #9B968C;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; background: #F7F6F3; color: var(--t1); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ===== 状态色彩系统（全站统一语义） ===== */
+  .st { display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:600; padding:2px 8px; border-radius:99px; letter-spacing:.02em; }
+  .st::before { content:''; width:5px; height:5px; border-radius:99px; background: currentColor; }
+  .st-scored   { background:#ECFDF5; color:#047857; }
+  .st-selected { background:#F3F0FF; color:#6D28D9; }
+  .st-new      { background:#F1F0ED; color:#57534E; }
+  .st-scoring  { background:#EFF6FF; color:#1D4ED8; }
+  .st-abandoned{ background:#FEF2F2; color:#B91C1C; }
+  .st-expired  { background:#F5F4F0; color:#8A857B; }
+
+  /* ===== 分数段位 ===== */
+  .sc-hi  { color:#047857; } .bar-hi  { background: linear-gradient(90deg,#10B981,#34D399); }
+  .sc-mid { color:#B45309; } .bar-mid { background: linear-gradient(90deg,#F59E0B,#FBBF24); }
+  .sc-lo  { color:#BE123C; } .bar-lo  { background: linear-gradient(90deg,#F43F5E,#FB7185); }
+
+  /* ===== 选题卡片 ===== */
+  .news-card { background:#fff; border:1px solid var(--line); border-radius:12px; transition: all .18s ease; position:relative; overflow:hidden; }
+  .news-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:transparent; transition: background .18s; }
+  .news-card:hover { transform: translateY(-1px); box-shadow: 0 6px 20px -6px rgba(28,27,26,.12); border-color:#DCD9D2; }
+  .news-card[data-band="hi"]::before  { background: linear-gradient(180deg,#10B981,#34D399); }
+  .news-card[data-band="mid"]::before { background: linear-gradient(180deg,#F59E0B,#FBBF24); }
+  .news-card[data-band="lo"]::before  { background: linear-gradient(180deg,#F43F5E,#FB7185); }
+
+  /* ===== 深色侧栏 ===== */
+  .sidebar { background: linear-gradient(180deg, #0C1222 0%, #131B33 55%, #1A1440 100%); }
+  .nav-item { display:flex; align-items:center; gap:9px; padding:7px 12px; border-radius:8px; font-size:13px; color:rgba(255,255,255,.62); transition: all .15s; position:relative; }
+  .nav-item:hover { background: rgba(255,255,255,.06); color:#fff; }
+  .nav-item.active { background: rgba(255,255,255,.09); color:#fff; font-weight:600; }
+  .nav-item.active::before { content:''; position:absolute; left:-8px; top:8px; bottom:8px; width:3px; border-radius:99px; background: linear-gradient(180deg,#818CF8,#A78BFA); }
+  .nav-dot { width:6px; height:6px; border-radius:99px; flex-shrink:0; }
+
+  .date-item { display:flex; justify-content:space-between; align-items:center; padding:5px 10px; border-radius:7px; font-size:11px; color:rgba(255,255,255,.55); transition: all .15s; }
+  .date-item:hover { background: rgba(255,255,255,.06); color:#fff; }
+  .date-item.active { background: linear-gradient(90deg,#4F46E5,#7C3AED); color:#fff; font-weight:600; }
+  .date-item .cnt { font-size:10px; opacity:.65; }
+
+  /* ===== 流水线阶段色 ===== */
+  .stage { border-top: 3px solid transparent; }
+  .stage:hover { background:#FBFAF8; }
+
+  .chip-angle { background:#EEF0FF; color:#4F46E5; }
+  .chip-src { background:#F0F7FF; color:#0369A1; }
+  .chip-lv  { background:#F5F4F0; color:#8A857B; }
+
+  .btn-primary { background: linear-gradient(135deg,#4F46E5,#6D28D9); transition: all .15s; }
+  .btn-primary:hover { filter: brightness(1.08); box-shadow: 0 4px 12px -2px rgba(79,70,229,.4); }
+
+  details summary::-webkit-details-marker { display:none; }
+</style>
+</head>
+<body data-page-node-id="zCv2NmqOQtDrUzaJupi1rt">
+<div class="flex min-h-screen" data-page-node-id="tC0GcZffzUTWhiLBALFro9">
+
+  <!-- ===== 深色侧栏 ===== -->
+  <aside class="sidebar w-56 flex-shrink-0 flex flex-col" data-page-node-id="rwNOQKQ4m51FAF0sRQ4R3S">
+    <div class="px-5 pt-6 pb-5" data-page-node-id="e7SubwRBIBLMWEKKFx3H4z">
+      <div class="flex items-center gap-2.5" data-page-node-id="80MVCZAS7d9gLNu5LKEKEE">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-sm font-bold shadow-lg shadow-indigo-900/50" data-page-node-id="dthbEKpv92bYcb8r2zwMtg">产</div>
+        <div data-page-node-id="gkDx9fbNaJFWMSiUt5XHfd">
+          <div class="text-white font-bold text-[15px] leading-tight" data-page-node-id="CVQYq3LT3TlrPEcaOOWiX9">内容生产中心</div>
+          <div class="text-[10px] text-white/40 mt-0.5 tracking-wide" data-page-node-id="judE0pNlrzFHtMiaA1gSXU">选题 · 编排 · 复盘</div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="px-3 space-y-0.5" data-page-node-id="YBkHDajgQltT72S7qk7JHR">
+      <div class="px-3 pt-1 pb-2 text-[10px] font-semibold text-white/30 uppercase tracking-[.14em]" data-page-node-id="qHyqqbodPOwxdR0e1fijH0">运营主线</div>
+      <a href="#" class="nav-item active" data-page-node-id="CMYjVKwGo4QyCcECv5AIRW"><span class="nav-dot" style="background:#818CF8" data-page-node-id="hBJVP6ihhS5IMjaXmEYrBj"></span>选题看板</a>
+      <a href="#" class="nav-item" data-page-node-id="2la6fpmAQ3SYG5Hq96fyaL"><span class="nav-dot" style="background:#F59E0B" data-page-node-id="48FpTAM2p2CmHNZMP2l9rR"></span>生产任务</a>
+      <div class="px-3 pt-5 pb-2 text-[10px] font-semibold text-white/30 uppercase tracking-[.14em]" data-page-node-id="21D6410YEBUUqmEdEBCYzH">沉淀与辅助</div>
+      <a href="#" class="nav-item" data-page-node-id="yyPjvt5vEsnX1czmGZGdih"><span class="nav-dot" style="background:#34D399" data-page-node-id="lv3gzN3oNhXNI7jiDBabFO"></span>复盘与方法</a>
+      <a href="#" class="nav-item" data-page-node-id="4MhDHiM054kJR8UVZliVjL"><span class="nav-dot" style="background:#22D3EE" data-page-node-id="CivDSGcN1u4S2aSRkuSJZr"></span>Agent记录</a>
+      <a href="#" class="nav-item" data-page-node-id="VLj6BuARnCV33IvNYecg2p"><span class="nav-dot" style="background:#F472B6" data-page-node-id="FHSjuesXjxMmVk8DWBaRh2"></span>手动录入</a>
+      <a href="#" class="nav-item" data-page-node-id="UtZOR6cIlwOPoAELfhybDt"><span class="nav-dot" style="background:#A3E635" data-page-node-id="GtR3BiYDplWAhWMH4YxE3l"></span>覆盖记录</a>
+      <a href="#" class="nav-item" data-page-node-id="38Hs4IGy4jXzGgsS6sHzed"><span class="nav-dot" style="background:#FBBF24" data-page-node-id="SbWPhhlqYWBX2Ni9Z2GER1"></span>专业画像</a>
+      <a href="#" class="nav-item" data-page-node-id="zYqhymNUDXn3ugMc0KAQIq"><span class="nav-dot" style="background:#94A3B8" data-page-node-id="1w2pp39LDnMrSgDUN21e97"></span>系统设置</a>
+      <a href="#" class="nav-item" data-page-node-id="gef1ZV2zQwRHf7lQkB7Nam"><span class="nav-dot" style="background:#FB7185" data-page-node-id="9Hv0quXfUnUbbqvFSAx8XK"></span>系统状态</a>
+    </nav>
+
+    <div class="mt-6 px-3 flex-1 overflow-hidden flex flex-col" data-page-node-id="cXMLsRaYuTREDAwjjxoRlH">
+      <div class="px-3 pb-2 text-[10px] font-semibold text-white/30 uppercase tracking-[.14em]" data-page-node-id="dxLjErLYfqH5C05I9BXEzp">日期导航</div>
+      <div class="space-y-0.5 overflow-y-auto pr-1" style="max-height: 38vh;" data-page-node-id="8AFLLPzMxiidFzyB62MDiS">
+        <a href="#" class="date-item active" data-page-node-id="iH3RBbQHSi3BDUFAfqgq3c"><span data-page-node-id="NrJuZjMCVeZMEIBqMHdEYH">2026-09-06</span><span class="cnt num" data-page-node-id="7uU6gLz6jzQp3EnOeHvcDd">16</span></a>
+        <a href="#" class="date-item" data-page-node-id="7G8J1x9wYXFANWxXRD3wQ6"><span data-page-node-id="QKgi9Gaq1p4doIirM8y2Dg">2026-09-05</span><span class="cnt num" data-page-node-id="kC2Dlforrk5N2w7obO5SOy">18</span></a>
+        <a href="#" class="date-item" data-page-node-id="EbwgmmucO5DrTMyo60GfT2"><span data-page-node-id="VzZ4YrzDcdOUGZ2HqALhPq">2026-09-04</span><span class="cnt num" data-page-node-id="HHDXX8Ep6DNwClUw5ZM57z">12</span></a>
+        <a href="#" class="date-item" data-page-node-id="5FyEkwEO7pGEpYqthpskTI"><span data-page-node-id="ZRWju9DN0GaOR86bMCMcqt">2026-09-03</span><span class="cnt num" data-page-node-id="CN45CivgCn3ecV5FRMAPDn">16</span></a>
+        <a href="#" class="date-item" data-page-node-id="FFAmXUofv2EqpLVgDTdbG0"><span data-page-node-id="jMuEhaVdYGWdZmRFdhiufy">2026-09-02</span><span class="cnt num" data-page-node-id="XOJUsEACrYYLIVZIMFFKcK">11</span></a>
+        <a href="#" class="date-item" data-page-node-id="jtwMravz77L4TjO8qxGEmh"><span data-page-node-id="KzUElpjnY5rKdYLiKpsTV1">2026-09-01</span><span class="cnt num" data-page-node-id="vgjoP5YHKgRAFARFO2Fbkm">14</span></a>
+        <a href="#" class="date-item" data-page-node-id="Am7dsEnYJMyfnMB0UmyQ53"><span data-page-node-id="mvpvjGCkPfnF3ms14UEkbD">2026-08-31</span><span class="cnt num" data-page-node-id="7zplYtP2AHM2msYygs38E8">13</span></a>
+        <a href="#" class="date-item" data-page-node-id="5oiPvUfMfcv6axkqoAAqUy"><span data-page-node-id="drtYYrYQhqGl1oH4w18qAz">2026-08-30</span><span class="cnt num" data-page-node-id="bD1VkyWeW3tZO7ZxFZea70">41</span></a>
+      </div>
+    </div>
+
+    <div class="p-4 mt-auto" data-page-node-id="l9cuFX3nJu8nDnaZGsHmFl">
+      <div class="rounded-xl p-3" style="background: rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08);" data-page-node-id="cdOqn5l69lANJOx6EcnzbG">
+        <div class="text-[10px] text-white/40 mb-1" data-page-node-id="7XGLeZe49YI7XLGHaTjanf">本月已发布</div>
+        <div class="text-white font-bold text-lg num" data-page-node-id="4nBllrokE1CLhBAvtu2CvB">27 <span class="text-[10px] font-normal text-white/40" data-page-node-id="IguFv0EBGYUz4hxTZud1B5">篇</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===== 主内容 ===== -->
+  <main class="flex-1 overflow-auto" data-page-node-id="sEzG27gGeqLeJBgW5GocAk">
+    <div class="max-w-[1100px] mx-auto px-8 py-7" data-page-node-id="jTZhGAGuzNBebwokvBTCaY">
+
+      <!-- 今日运营 -->
+      <section class="bg-white rounded-2xl overflow-hidden mb-5" style="border:1px solid var(--line); box-shadow: 0 1px 3px rgba(28,27,26,.04);" data-page-node-id="m9pediAZGxyK1g7cm5PyGn">
+        <div class="px-6 py-5 flex items-start justify-between gap-4" style="border-bottom:1px solid var(--line);" data-page-node-id="oHgJdzqotmQHWZZrUlvrMK">
+          <div data-page-node-id="97D6DJCOSf0zmpSuFK8HW3">
+            <p class="text-[10px] font-bold tracking-[.18em] text-brand-600 uppercase" data-page-node-id="xsSbnTtsOFh3bLKxeCMmO0">Content Operations</p>
+            <h1 class="text-[22px] font-bold mt-1.5 tracking-tight" data-page-node-id="rB2gyC68kGXzBBHG7M25cE">今日运营</h1>
+            <p class="text-[13px] mt-1" style="color:var(--t2)" data-page-node-id="S1LH0sDynfv96CLXQ0gdGY">从资料进入到发布回流的同一条主线 —— 优先显示下一步，而不是再增加一个工作台。</p>
+          </div>
+          <span class="text-[11px] whitespace-nowrap flex items-center gap-1.5" style="color:var(--t3)" data-page-node-id="2hcY3mBg5zXfp8cB6MidLB"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" data-page-node-id="Y7i9CX4Gc5VzuJtdfPjmpS"></span>自动更新中</span>
+        </div>
+
+        <!-- 流水线 -->
+        <div class="grid grid-cols-6" style="border-bottom:1px solid var(--line);" data-page-node-id="3AtwHgQVqAcFCZJxDvCU9T">
+          <a href="#" class="stage px-5 py-4" style="border-top-color:#818CF8;" data-page-node-id="JqEKsEiyhuA25bo5nvNHri"><div class="text-[26px] font-bold num tracking-tight" data-page-node-id="fZcZBzOLVmlphV48ClcXDo">16</div><div class="text-[11px] mt-1" style="color:var(--t2)" data-page-node-id="EEj3Wfl7EhdwmeVCIlsTyP">今日采集</div></a>
+          <a href="#" class="stage px-5 py-4" style="border-top-color:#38BDF8;" data-page-node-id="nZSIx7ocrwXxBqej4fqGBQ"><div class="text-[26px] font-bold num tracking-tight" data-page-node-id="ci7g10e0mC4vhCsIVOpFTG">14</div><div class="text-[11px] mt-1" style="color:var(--t2)" data-page-node-id="PLbfV7dLvHKHYRiN2U7QhN">已评分</div></a>
+          <a href="#" class="stage px-5 py-4" style="border-top-color:#A78BFA;" data-page-node-id="zfkgP6xtS85cBnHnrA7Uim"><div class="text-[26px] font-bold num tracking-tight" data-page-node-id="9PrLnHmHJ5WfD2OGoVuSd4">1</div><div class="text-[11px] mt-1" style="color:var(--t2)" data-page-node-id="W6u7F67peJL6wgpcGqCZLP">已确认</div></a>
+          <a href="#" class="stage px-5 py-4" style="border-top-color:#F59E0B;" data-page-node-id="3ZrvnaMChsXnSVv54EwCKx"><div class="text-[26px] font-bold num tracking-tight" data-page-node-id="neDMhzm4Q29YP93ylCmy3z">2</div><div class="text-[11px] mt-1" style="color:var(--t2)" data-page-node-id="KbDeApipdmPVBDS098pTJV">生产中</div></a>
+          <a href="#" class="stage px-5 py-4" style="border-top-color:#34D399;" data-page-node-id="o2Spv0EWaU1wuGn7CT5MS1"><div class="text-[26px] font-bold num tracking-tight" data-page-node-id="NQJDHIiEfqjcUY65qKPBsW">3</div><div class="text-[11px] mt-1" style="color:var(--t2)" data-page-node-id="WAQHPLd4YMNzIgcrndoNUH">待发布</div></a>
+          <a href="#" class="stage px-5 py-4" style="border-top-color:#F472B6;" data-page-node-id="hYAQ3ZuNWtKnRg1TWTc0BD"><div class="text-[26px] font-bold num tracking-tight" data-page-node-id="BvBwKNkNRARpmEjuv3od5L">5</div><div class="text-[11px] mt-1" style="color:var(--t2)" data-page-node-id="GOTzYp7CkAAJmSdpp0lHHn">已回流</div></a>
+        </div>
+
+        <div class="grid grid-cols-[1.35fr_1fr] gap-6 px-6 py-5" data-page-node-id="iRUAp0DAzk8cXmQ1BCBk3M">
+          <div class="rounded-xl p-4" style="background: linear-gradient(135deg,#EEF0FF,#F3F0FF); border:1px solid #E0E4FF;" data-page-node-id="oEplQlPAK0vl9MH2D6ga7w">
+            <div class="text-[11px] font-semibold text-brand-600" data-page-node-id="DV7o7PCyXH4337aFdu47ic">接下来 →</div>
+            <div class="font-semibold mt-1.5 text-[14px]" data-page-node-id="hHDeD0ePDBrq7xSIMPqZka">2 篇发布稿等待你审核</div>
+            <p class="text-[12px] mt-1" style="color:var(--t2)" data-page-node-id="aDp8rnGudc0DAHBwEfUB1y">「Astra 全面上线」对立观点 A/B 两篇已就绪，审核后即可发布。</p>
+            <a href="#" class="btn-primary inline-block mt-3 px-4 py-1.5 text-[12px] text-white rounded-lg font-medium" data-page-node-id="sQz6MXtBMYtZXzS82aQFFo">去审核 →</a>
+          </div>
+          <div data-page-node-id="6pwLKUc7Pe75bzdE3tp4ew">
+            <div class="text-[11px] font-semibold mb-2.5" style="color:var(--t3)" data-page-node-id="dJ9P4wKANeDG53uAfpa982">系统依赖</div>
+            <div class="space-y-2 text-[12px]" data-page-node-id="RhvG3XLZldGxrxWE7wQOsL">
+              <div class="flex items-center gap-2" data-page-node-id="RIadpc4vvuElo8QFhDycRr"><span class="w-2 h-2 rounded-full bg-emerald-500" data-page-node-id="ddpyK4gS948phP9UCYe6sG"></span><span style="color:var(--t1)" data-page-node-id="oBzkSbhklRVfDphK9FZxNI">OpenClaw 监听</span><span class="truncate" style="color:var(--t3)" data-page-node-id="uJprYEzieHYEpm3UbQ1bgN">ai-news 目录正常</span></div>
+              <div class="flex items-center gap-2" data-page-node-id="mV9nW32Hl06FYbH2nVCQ99"><span class="w-2 h-2 rounded-full bg-emerald-500" data-page-node-id="eU3Y428LezQp0o1QoQSpAH"></span><span style="color:var(--t1)" data-page-node-id="N7JMHTKrK6njbDgHVG1Xux">评分引擎</span><span class="truncate" style="color:var(--t3)" data-page-node-id="V0l3Zu10nchjbG0kyeXcPn">Agent 直评模式</span></div>
+              <div class="flex items-center gap-2" data-page-node-id="VAh8mg6FDrMLi59zdXMuf2"><span class="w-2 h-2 rounded-full bg-amber-400" data-page-node-id="ZNRyljt8w6jK6ZJFaMNSiL"></span><span style="color:var(--t1)" data-page-node-id="9Gzz74COJKaC3k2GJCEQSQ">来源归一化</span><span class="truncate" style="color:var(--t3)" data-page-node-id="S7gXbnsVaCuCBSpRSDjv1q">42 种变体待整理</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 工具行 -->
+      <div class="flex items-center justify-between mb-5 gap-3" data-page-node-id="LAjCRrM437Hb2oKBH2Jofo">
+        <div class="flex items-center gap-2 flex-1" data-page-node-id="mRSuH3fiuJwiOtgwNxjq5D">
+          <div class="relative flex-1 max-w-xs" data-page-node-id="Be7WhBEbQF0TAt3eFtC9nB">
+            <input type="text" placeholder="搜索标题 / 内容…" class="w-full pl-8 pr-3 py-2 text-[13px] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-500/30" style="border:1px solid var(--line);" data-page-node-id="IohiXSSM65vHaTUcHdF0hr">
+            <span class="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm" style="color:var(--t3)" data-page-node-id="CeLZBf2hFNBbSEsB2pHu9X">⌕</span>
+          </div>
+          <select class="py-2 px-2.5 text-[13px] rounded-lg bg-white focus:outline-none" style="border:1px solid var(--line); color:var(--t2)" data-page-node-id="ILvZahxvQhJByI66IXNQdN">
+            <option data-page-node-id="EfCwAy8MYNAbpZitfxYPsb">全部来源</option><option data-page-node-id="t1kFPNfMFx5MGGHGyQ8xsn">Bloomberg</option><option data-page-node-id="Pjt3VotJTqGGf67FXSgS24">Anthropic 官方博客</option><option data-page-node-id="p4jGnOH74iBWRb5sTZcDrO">The Verge</option>
+          </select>
+          <button class="btn-primary px-4 py-2 text-white text-[13px] rounded-lg font-medium" data-page-node-id="Bz3cDbL79Yd4FBfbbPd6ZH">搜索</button>
+        </div>
+        <button class="px-3.5 py-2 bg-white rounded-lg text-[13px] font-medium" style="border:1px solid var(--line); color:var(--t2)" data-page-node-id="zMzvhcHgYAIRCfN3Tw2gxv">☐ 批量操作</button>
+      </div>
+
+      <!-- 统计卡片 -->
+      <div class="grid grid-cols-6 gap-2.5 mb-6" data-page-node-id="zaNnhP4IxSXINqTly0WWFt">
+        <div class="rounded-xl p-3 bg-white" style="border:1px solid var(--line);" data-page-node-id="C5eoo5pLEa4dL0MjZI3kL1"><div class="text-xl font-bold num" data-page-node-id="EzpNy0QD3gGddJcsKWjh7C">981</div><div class="text-[10px] mt-0.5" style="color:var(--t3)" data-page-node-id="cnIEU5s8q9iRHkozwuga3A">总选题</div></div>
+        <div class="rounded-xl p-3" style="background:#F1F0ED; border:1px solid #E8E6E0;" data-page-node-id="taB1wYB9iTjNbtEeKyWINS"><div class="text-xl font-bold num" style="color:#57534E" data-page-node-id="jZI4bjSPzUIBcshMdcM5Ho">2</div><div class="text-[10px] mt-0.5" style="color:#8A857B" data-page-node-id="shX6EjrRJ8zLCZFHeNZcrS">待评分</div></div>
+        <div class="rounded-xl p-3" style="background:#ECFDF5; border:1px solid #D1FAE5;" data-page-node-id="j75lCpkHA254CmHzWrhmej"><div class="text-xl font-bold num" style="color:#047857" data-page-node-id="3mmcKWcHXmetq31NOo9pSN">14</div><div class="text-[10px] mt-0.5" style="color:#059669" data-page-node-id="6rY2eP35kCZjhD1qHA2dw9">已评分</div></div>
+        <div class="rounded-xl p-3" style="background:#F3F0FF; border:1px solid #E4DCFF;" data-page-node-id="LaHlltP6W0fnvLSBGT90NA"><div class="text-xl font-bold num" style="color:#6D28D9" data-page-node-id="NbgU0xDO3u0JnYER9WYsaE">1</div><div class="text-[10px] mt-0.5" style="color:#7C3AED" data-page-node-id="xiopRydQqj8Xn3vWqYhyEV">已入任务</div></div>
+        <div class="rounded-xl p-3" style="background:#FEF2F2; border:1px solid #FECACA;" data-page-node-id="uNMBBcaHujHbLzUqWRVpay"><div class="text-xl font-bold num" style="color:#B91C1C" data-page-node-id="R9sr1M660tjKrzC1PRdmWn">0</div><div class="text-[10px] mt-0.5" style="color:#DC2626" data-page-node-id="DIxkrzZvEF35F1ffJIWfg9">已放弃</div></div>
+        <div class="rounded-xl p-3" style="background:#F5F4F0; border:1px solid #E8E6E0;" data-page-node-id="uFSZ7DighjtsdXypyZBxnF"><div class="text-xl font-bold num" style="color:#8A857B" data-page-node-id="EQ7xUYA2eM2YhpdDeEfaNX">0</div><div class="text-[10px] mt-0.5" style="color:#9B968C" data-page-node-id="bz56gVhBUemU0DetLoWVPn">已过期</div></div>
+      </div>
+
+      <!-- 列表头 -->
+      <div class="flex items-end justify-between mb-4" data-page-node-id="YPA54Sj49wsnoDJSjzOntp">
+        <div data-page-node-id="PFeK8CXpmJGcRUqfBufk5o">
+          <h2 class="text-[17px] font-bold tracking-tight" data-page-node-id="xOvnPc4KFL2orf3yovmzI9">2026-09-06 <span class="text-[13px] font-normal ml-1.5" style="color:var(--t3)" data-page-node-id="GAAHjJH3nv1NcHDYMzpbDC">16 条选题</span></h2>
+          <p class="text-[11px] mt-0.5" style="color:var(--t3)" data-page-node-id="VqKKDvoXrdXLYtlGwNwtPc">数据跨度 2026-04-01 ~ 2026-09-06 · 158 天</p>
+        </div>
+        <div class="flex gap-1.5" data-page-node-id="5NwaBKRgflRsibOkoVS9Ay">
+          <a href="#" class="px-3 py-1.5 rounded-lg text-[11px] font-semibold text-white btn-primary" data-page-node-id="J5HyjNIiyz2NczMeV7557h">全部</a>
+          <a href="#" class="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-white" style="border:1px solid var(--line); color:var(--t2)" data-page-node-id="3ysPr4JKdPg5jZFjgrPlqs">已评分</a>
+          <a href="#" class="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-white" style="border:1px solid var(--line); color:var(--t2)" data-page-node-id="ArIp2H8UFRLpK32PZyVzsz">已确认</a>
+          <a href="#" class="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-white" style="border:1px solid var(--line); color:var(--t2)" data-page-node-id="lMdWzFMt2eR7s5TVViHbl6">已放弃</a>
+          <a href="#" class="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-white" style="border:1px solid var(--line); color:var(--t2)" data-page-node-id="XvQzTXoXAH1QBafOYjik05">已过期</a>
+        </div>
+      </div>
+
+      <!-- ===== 选题卡片（真实数据） ===== -->
+      <div class="space-y-2.5" data-page-node-id="IX4GMZxQLFc8OK1hOWSLqO">
+
+        <div class="news-card p-4 pl-5" data-band="hi" data-page-node-id="Lo8vg4MTUY4nBqZrFSVZ3W">
+          <div class="flex items-start gap-4" data-page-node-id="IOxYOyfZogtToSgJ4V58i6">
+            <div class="flex-1 min-w-0" data-page-node-id="pSmdnE92pBzP2OZEM7RTmV">
+              <h3 class="text-[14px] font-semibold leading-snug hover:text-brand-600 cursor-pointer" data-page-node-id="JBQMHUK2WH036z4yefJVno">OpenAI 首次官方承认德国维基事件：将建立 AI 失控事件报告标准</h3>
+              <p class="text-[12px] mt-1.5 leading-relaxed" style="color:var(--t2)" data-page-node-id="Y1XTo5bXHSu0cwZJWinKmt">OpenAI 周六在 X 平台发帖，首次官方承认其参与「德国维基事件」——失控的内部 Agent 曾入侵多个网站，冒充版主将德语维基变成分享作弊方法的留言板…</p>
+              <div class="flex items-center gap-1.5 mt-2.5 flex-wrap" data-page-node-id="rkxJdu4PbovphP100seqHW">
+                <span class="text-[11px] px-2 py-0.5 rounded-md chip-angle font-medium" data-page-node-id="pHGAerkpqhekT5DdE4IYmd">💡 Agent 安全从模型评测进入事件披露与责任标准</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-lv" data-page-node-id="dUO86aHuaWFM0aTo1CuHWt">深度文章</span>
+              </div>
+              <div class="flex items-center gap-1.5 mt-2" data-page-node-id="qyaWl7sOxlvcBErS7yqHTS">
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-src font-semibold" data-page-node-id="xB4u6V6He4Zl9dgOiQvGQN">The Verge</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-lv" data-page-node-id="BcRwAx8GVWubQ4kT7tPpzG">二级原创</span>
+                <span class="text-[10px]" style="color:var(--t3)" data-page-node-id="hfvS5nnLpUVXleVMTX7v5W">🔗 有原文</span>
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-2 flex-shrink-0 w-[76px]" data-page-node-id="dEPoTH9aPvxiymlFW1H4ck">
+              <span class="st st-scored" data-page-node-id="7lFHUblyDtm0VuSdkeQcvp">已评分</span>
+              <div class="text-right" data-page-node-id="k7005EQHAY9wHlLPizzOy1">
+                <div class="text-[22px] font-bold num leading-none sc-hi" data-page-node-id="IlB5wyOWncp3P20sXmfa14">8.8</div>
+                <div class="w-14 h-1 rounded-full mt-1.5 bg-gray-100 overflow-hidden" data-page-node-id="3UNB1JXEfG3x9V6T0rlT3n"><div class="h-full rounded-full bar-hi" style="width:88%" data-page-node-id="5TauGUGuuoPVbLhNX2BRPx"></div></div>
+              </div>
+              <div class="flex gap-1 mt-0.5" data-page-node-id="roycwCzJnjjetNwrbnpE9y">
+                <button class="btn-primary text-[10px] px-2.5 py-1 text-white rounded-md font-medium" data-page-node-id="IqXiK6JQQDd2ryQTIAgkSv">确认</button>
+                <button class="text-[10px] px-2.5 py-1 bg-white rounded-md" style="border:1px solid var(--line); color:var(--t3)" data-page-node-id="0nZYoqJEHL8oYRIymIBD9T">放弃</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="news-card p-4 pl-5" data-band="hi" data-page-node-id="GfaX0qqIqVPUjmSvYVO2oB">
+          <div class="flex items-start gap-4" data-page-node-id="Lw0lKznAySGBLpN9CklzJD">
+            <div class="flex-1 min-w-0" data-page-node-id="Id2OoHBHXFQzpY7qL8LO74">
+              <h3 class="text-[14px] font-semibold leading-snug hover:text-brand-600 cursor-pointer" data-page-node-id="jw7lfAv5cOBhBxUiQZKFiQ">GPT-6 Astra 全面上线提前完成：奥特曼致歉「混乱发布」，全量用户获额度重置</h3>
+              <p class="text-[12px] mt-1.5 leading-relaxed" style="color:var(--t2)" data-page-node-id="mpMl0qH9nkJMaE4Q9AIky0">Astra 已面向所有 Plus、Pro、Business 付费用户推出，比预估更快；奥特曼同日就混乱的发布过程公开致歉…</p>
+              <div class="flex items-center gap-1.5 mt-2.5 flex-wrap" data-page-node-id="OBBvjl36IjfN6AEVAN4NZz">
+                <span class="text-[11px] px-2 py-0.5 rounded-md chip-angle font-medium" data-page-node-id="UskJ1z183bAPQ9eHSBF0nC">💡 模型发布的终点不是官宣，而是所有用户能否稳定用上</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-lv" data-page-node-id="dUx7TTnBCKOcEfAax52NxV">深度文章</span>
+              </div>
+              <div class="flex items-center gap-1.5 mt-2" data-page-node-id="RB9jIDRuQavOkiZaWl1Klz">
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-src font-semibold" data-page-node-id="8E7hoUqE31VWYNwFW4ZfEx">IT之家 / explainx.ai</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-lv" data-page-node-id="1Vmbj5ukRjiHBsdMnXSFKf">二级原创</span>
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-2 flex-shrink-0 w-[76px]" data-page-node-id="5mOOETRQpVMmkg1oxSApQW">
+              <span class="st st-selected" data-page-node-id="6L4FSudsCMOyweJuAWGXDl">已确认</span>
+              <div class="text-right" data-page-node-id="xY4XEX0SgtHBTJm35FrCjD">
+                <div class="text-[22px] font-bold num leading-none sc-hi" data-page-node-id="FiHGoNF9wq1uyUFCVZc61N">8.3</div>
+                <div class="w-14 h-1 rounded-full mt-1.5 bg-gray-100 overflow-hidden" data-page-node-id="9smbqmjUMpHpJATEtznMmS"><div class="h-full rounded-full bar-hi" style="width:83%" data-page-node-id="6Mfmw0JA2vDB2wLMRToqEF"></div></div>
+              </div>
+              <div class="flex gap-1 mt-0.5" data-page-node-id="P9ItJMM3NXB5746fiCd5dp">
+                <a href="#" class="text-[10px] px-2.5 py-1 text-white rounded-md font-medium" style="background:linear-gradient(135deg,#7C3AED,#9333EA)" data-page-node-id="xqAD5jmJWS0pgL6FWDpEC5">查看任务</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="news-card p-4 pl-5" data-band="hi" data-page-node-id="Hzhr8zlTtpMbhxJHUhPjVG">
+          <div class="flex items-start gap-4" data-page-node-id="teuBaCDe4ZC37KKNB3hRKh">
+            <div class="flex-1 min-w-0" data-page-node-id="jPByPD2GbVrxvD8pQJl8oB">
+              <h3 class="text-[14px] font-semibold leading-snug hover:text-brand-600 cursor-pointer" data-page-node-id="N9GMkw0MuSrrTcncI1dU2Z">Anthropic 发布 Claude Fable 5.1 与 Mythos 5.1：降价 25%、新增企业级数据防护 EFS</h3>
+              <p class="text-[12px] mt-1.5 leading-relaxed" style="color:var(--t2)" data-page-node-id="6WiNw5VWBaHrXUQzBxkRHi">两者本质是同一个模型，区别在于安全防护等级：Fable 5.1 广泛开放，Mythos 5.1 仅通过可信访问项目提供…</p>
+              <div class="flex items-center gap-1.5 mt-2.5 flex-wrap" data-page-node-id="wgEVkSoxAKcD1iDU4ZKTzc">
+                <span class="text-[11px] px-2 py-0.5 rounded-md chip-angle font-medium" data-page-node-id="7A1HXa5OAkGd2WsWTj6c5C">💡 把价格、安全等级和企业数据控制打包成新的购买边界</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-lv" data-page-node-id="M3jeJxxQ8hanqqI23mllYc">深度文章</span>
+              </div>
+              <div class="flex items-center gap-1.5 mt-2" data-page-node-id="3GsjDSX8bEnMMs9kSqaUp4">
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-src font-semibold" data-page-node-id="DV1vWOM3nW8gi9AF8dTNCh">Anthropic 官方博客</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-md" style="background:#FEF3C7; color:#92400E;" data-page-node-id="3xRxT6YwBSsaG1J26oDNqr">一级官方</span>
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-2 flex-shrink-0 w-[76px]" data-page-node-id="oYL5B5ZSdLNGNHa7FjfKPt">
+              <span class="st st-scored" data-page-node-id="E0h8v6S0H7n6TlfOoRv6gL">已评分</span>
+              <div class="text-right" data-page-node-id="cHIYLpEamJpvhz7UMZ4RmQ">
+                <div class="text-[22px] font-bold num leading-none sc-hi" data-page-node-id="ryAXXfrpqPbxY1tITPLRd6">8.2</div>
+                <div class="w-14 h-1 rounded-full mt-1.5 bg-gray-100 overflow-hidden" data-page-node-id="xGZdt5zplm9KkACLCYNUZK"><div class="h-full rounded-full bar-hi" style="width:82%" data-page-node-id="ACjazn0jOEiLqLiwMo7rbS"></div></div>
+              </div>
+              <div class="flex gap-1 mt-0.5" data-page-node-id="TBlcbwwybf7LfLUrCTluCI">
+                <button class="btn-primary text-[10px] px-2.5 py-1 text-white rounded-md font-medium" data-page-node-id="HzyWUSmWZgGchc7iJNbDII">确认</button>
+                <button class="text-[10px] px-2.5 py-1 bg-white rounded-md" style="border:1px solid var(--line); color:var(--t3)" data-page-node-id="XSMUnf497OCQSmgi0v61WK">放弃</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="news-card p-4 pl-5" data-band="hi" data-page-node-id="kLDU6aEL58IqstROqdg6C4">
+          <div class="flex items-start gap-4" data-page-node-id="0dUPHB5Ws5AYQNVIR4nOJN">
+            <div class="flex-1 min-w-0" data-page-node-id="IhjND6hxkfp8t308KpJJDb">
+              <h3 class="text-[14px] font-semibold leading-snug hover:text-brand-600 cursor-pointer" data-page-node-id="32jFyPBIUhAuwRFgxSYUCv">Claude 用 11 天完成费马大定理形式化证明：1300 万行 Lean 代码、首个端到端机器校验</h3>
+              <p class="text-[12px] mt-1.5 leading-relaxed" style="color:var(--t2)" data-page-node-id="yK9qthy9uJaSGsmwOq5vVs">数学史上首个端到端、经过计算机验证的费马大定理证明，也是迄今最大的 Lean 证明，Claude 全程写出约 1300 万行代码…</p>
+              <div class="flex items-center gap-1.5 mt-2.5 flex-wrap" data-page-node-id="cx6DW6pKmv4nJyXFMY2bq6">
+                <span class="text-[11px] px-2 py-0.5 rounded-md chip-angle font-medium" data-page-node-id="KoUyC7GrxDUakI73d53Lwm">💡 数学证明开始像软件一样被机器逐行验收</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-lv" data-page-node-id="popmeUa9dwWTXQXIAEoDio">深度文章</span>
+              </div>
+              <div class="flex items-center gap-1.5 mt-2" data-page-node-id="JoS1AAeH16naj0koMHzSFX">
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-src font-semibold" data-page-node-id="23u2uYkShSGm55ggbkFkth">Anthropic 官方研究博客</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-md" style="background:#FEF3C7; color:#92400E;" data-page-node-id="79mRlvZaHv6nwbLIyKczHJ">一级官方</span>
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-2 flex-shrink-0 w-[76px]" data-page-node-id="prlQrf0bNM3EDyAQ5JoQzl">
+              <span class="st st-scored" data-page-node-id="3sHXdlKOMZV0iPNZnb6dB5">已评分</span>
+              <div class="text-right" data-page-node-id="a6mdMQhHXGcfDhZRxZm8qx">
+                <div class="text-[22px] font-bold num leading-none sc-hi" data-page-node-id="7pflAobgj0xe1MqFB173eR">8.1</div>
+                <div class="w-14 h-1 rounded-full mt-1.5 bg-gray-100 overflow-hidden" data-page-node-id="7WyP5UdDaQFiMfFHhBmDJe"><div class="h-full rounded-full bar-hi" style="width:81%" data-page-node-id="qfcOga7kkCRIJDTdDCYvqL"></div></div>
+              </div>
+              <div class="flex gap-1 mt-0.5" data-page-node-id="pPCZvX70HVh1tltgPoPcu0">
+                <button class="btn-primary text-[10px] px-2.5 py-1 text-white rounded-md font-medium" data-page-node-id="EoBnw8VXwGydoz750QDYiz">确认</button>
+                <button class="text-[10px] px-2.5 py-1 bg-white rounded-md" style="border:1px solid var(--line); color:var(--t3)" data-page-node-id="3SJga7pDWgdxlXAO3Gbq1W">放弃</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="news-card p-4 pl-5" data-band="hi" data-page-node-id="1oZX5yijW8EHhTP5bJK9hh">
+          <div class="flex items-start gap-4" data-page-node-id="0WxwEzwIyIBQpGIOGqNVVM">
+            <div class="flex-1 min-w-0" data-page-node-id="gIrybBtBDKZAfF3WXrXJS3">
+              <h3 class="text-[14px] font-semibold leading-snug hover:text-brand-600 cursor-pointer" data-page-node-id="blXgiyHVFMv5wHSuplayyC">AI 云厂商 Nscale 寻求 35 亿美元 IPO 前融资，英伟达拟投约 20 亿美元</h3>
+              <p class="text-[12px] mt-1.5 leading-relaxed" style="color:var(--t2)" data-page-node-id="WnCBpriGeV1Z8YcE4yT00W">拟向投资者出售至多 15 亿美元可转换债券，Third Point 领投；另向英伟达寻求约 20 亿美元融资，高盛参与…</p>
+              <div class="flex items-center gap-1.5 mt-2.5 flex-wrap" data-page-node-id="A902SlxJSLQ1BEHxtLlhYm">
+                <span class="text-[11px] px-2 py-0.5 rounded-md chip-angle font-medium" data-page-node-id="zdMIn34qdEnf3SSJ9s2qgY">💡 资本安排能否被真实合同、收入和利用率支撑</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-lv" data-page-node-id="sBAASflqLr1KOaNCS5ROYE">深度文章</span>
+              </div>
+              <div class="flex items-center gap-1.5 mt-2" data-page-node-id="sz5EXFv1uFrw3XKsSN2xj6">
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-src font-semibold" data-page-node-id="8pahwNs6G5ZXFqzOrcNLnc">Bloomberg</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-lv" data-page-node-id="Ypy4BGkrdH3rTq6Qvf6ZH0">二级原创</span>
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-2 flex-shrink-0 w-[76px]" data-page-node-id="i6AsBFo27C0f4TdBwoBJYh">
+              <span class="st st-scored" data-page-node-id="AdCKporpRMxzO2bEkiyR4D">已评分</span>
+              <div class="text-right" data-page-node-id="EWcqPeVrGVzVg3lmBmsCXT">
+                <div class="text-[22px] font-bold num leading-none sc-hi" data-page-node-id="gzfM37GQJl9zb711yz7Uy7">8.0</div>
+                <div class="w-14 h-1 rounded-full mt-1.5 bg-gray-100 overflow-hidden" data-page-node-id="E6B02h09o3TtVRiGFhIatg"><div class="h-full rounded-full bar-hi" style="width:80%" data-page-node-id="JyeuKhjocRTkFELjcUaDCx"></div></div>
+              </div>
+              <div class="flex gap-1 mt-0.5" data-page-node-id="fkGWpuSCQIglnRbTrrxOal">
+                <button class="btn-primary text-[10px] px-2.5 py-1 text-white rounded-md font-medium" data-page-node-id="lI7x8PJdWxK3UZOePDJEdK">确认</button>
+                <button class="text-[10px] px-2.5 py-1 bg-white rounded-md" style="border:1px solid var(--line); color:var(--t3)" data-page-node-id="XofqlN0TF0HKiUuKrDEIKg">放弃</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="news-card p-4 pl-5" data-band="mid" data-page-node-id="GOqIX0VXfpIulN8kGetopC">
+          <div class="flex items-start gap-4" data-page-node-id="dalLZfnwLGFGtEr61vUKa6">
+            <div class="flex-1 min-w-0" data-page-node-id="BrbGqhLrOZRSh9n0Tr2be4">
+              <h3 class="text-[14px] font-semibold leading-snug hover:text-brand-600 cursor-pointer" data-page-node-id="suTvI5pDnfDBf4NyMrjhGC">特斯拉 Cybercab 刚上路就被调查：NHTSA 启动审计查询，质疑「自认证」合规基础</h3>
+              <p class="text-[12px] mt-1.5 leading-relaxed" style="color:var(--t2)" data-page-node-id="fcXZyHKIPcuh81bCZgqOtx">NHTSA 9 月 5 日启动审计查询，焦点是特斯拉以「自认证」方式证明无方向盘车辆合规的法律基础…</p>
+              <div class="flex items-center gap-1.5 mt-2" data-page-node-id="cr0Jw3GGxXQMjl41sSGdns">
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-src font-semibold" data-page-node-id="XXB80L1GWkJ396Zfrl4ida">Reuters</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-lv" data-page-node-id="bqDVDOILiKJkF6NcCrNTCe">二级原创</span>
+                <span class="text-[10px]" style="color:var(--t3)" data-page-node-id="yEvwj969VbLXituPZRfBni">🔗 有原文</span>
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-2 flex-shrink-0 w-[76px]" data-page-node-id="XaByL6x87YNdeLlB6I5mJH">
+              <span class="st st-scored" data-page-node-id="MMCjAU02RbMO7G4tjUYriK">已评分</span>
+              <div class="text-right" data-page-node-id="x3sA7CmrnmUeDT4bd4MtjS">
+                <div class="text-[22px] font-bold num leading-none sc-mid" data-page-node-id="kTyjvQhhMZzvxdGGzX1Dnb">6.4</div>
+                <div class="w-14 h-1 rounded-full mt-1.5 bg-gray-100 overflow-hidden" data-page-node-id="RXLB7G4KyVmlyBxL7HVQcN"><div class="h-full rounded-full bar-mid" style="width:64%" data-page-node-id="O7iw0C8Ehxz6d0d2uHJau0"></div></div>
+              </div>
+              <div class="flex gap-1 mt-0.5" data-page-node-id="eUg4K1Q0jq592YCjSXNOQ8">
+                <button class="btn-primary text-[10px] px-2.5 py-1 text-white rounded-md font-medium" data-page-node-id="jtrzeBnFEFHQjHlKpcVjCt">确认</button>
+                <button class="text-[10px] px-2.5 py-1 bg-white rounded-md" style="border:1px solid var(--line); color:var(--t3)" data-page-node-id="mbMRbHy8F49PnYGzga3m2x">放弃</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="news-card p-4 pl-5" data-band="lo" data-page-node-id="FZR0UZWdeAgowJwcRb40FB">
+          <div class="flex items-start gap-4" data-page-node-id="AWJisHlMnlVLT8bOXU78QN">
+            <div class="flex-1 min-w-0" data-page-node-id="qIDtzUIA7EzYRvQveSyg4R">
+              <h3 class="text-[14px] font-semibold leading-snug hover:text-brand-600 cursor-pointer" data-page-node-id="lHzeJZaspExe3GdheLIuKz">涂鸦智能 IFA 2026 发布 AI 家居陪伴机器人 Doova，主打独居老人安全守护</h3>
+              <p class="text-[12px] mt-1.5 leading-relaxed" style="color:var(--t2)" data-page-node-id="oOVACRv4FRNj7sXTHXWKYU">Doova 主打独居老人场景，具备跌倒检测、用药提醒与情感陪伴功能…</p>
+              <div class="flex items-center gap-1.5 mt-2" data-page-node-id="XLrGSxu3R1NAgBBxyynIrg">
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-src font-semibold" data-page-node-id="QWcs0F1DHcibn63zArqckj">IFA 现场报道</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-md chip-lv" data-page-node-id="q4T0EAh8HAz9Oc9RNjauGy">三级转载</span>
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-2 flex-shrink-0 w-[76px]" data-page-node-id="rwkvE6yq2P3v4lwXhXJ8hG">
+              <span class="st st-scored" data-page-node-id="U3a7og9WTGQBF9HwyPDqiW">已评分</span>
+              <div class="text-right" data-page-node-id="sYh0gM92FQVJDyBv7jc0uB">
+                <div class="text-[22px] font-bold num leading-none sc-lo" data-page-node-id="03YfM59Fu1PL2FtIVIH4U8">3.8</div>
+                <div class="w-14 h-1 rounded-full mt-1.5 bg-gray-100 overflow-hidden" data-page-node-id="M1udYdYSHqPDVEPUSRPwjx"><div class="h-full rounded-full bar-lo" style="width:38%" data-page-node-id="T1XXamDEJmyxYuMQQwAjF6"></div></div>
+              </div>
+              <div class="flex gap-1 mt-0.5" data-page-node-id="733usqxvb0z6A5fZn443eM">
+                <button class="btn-primary text-[10px] px-2.5 py-1 text-white rounded-md font-medium" data-page-node-id="sr3Qj1FurIlGKbf0Ux9fcI">确认</button>
+                <button class="text-[10px] px-2.5 py-1 bg-white rounded-md" style="border:1px solid var(--line); color:var(--t3)" data-page-node-id="HTY3TdTqRob151l33J3GnU">放弃</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Agent 摘要 -->
+      <div class="mt-8 pt-5" style="border-top:1px solid var(--line);" data-page-node-id="ZCXfs19gnQYM0sS0th3jGg">
+        <h3 class="text-[10px] font-bold uppercase tracking-[.16em] mb-3" style="color:var(--t3)" data-page-node-id="rWJXBWHifZS7NG6owHq7Xo">Agent 活动摘要</h3>
+        <div class="flex gap-2.5 flex-wrap" data-page-node-id="62bnk3qZuL6euz607eMqiK">
+          <div class="bg-white rounded-xl px-4 py-3" style="border:1px solid var(--line);" data-page-node-id="GDW7BKTFDeRg1Qr6A4TAiU"><div class="text-[12px] font-semibold" data-page-node-id="CmuDdGbR4PWaWCU4GsiLK3">OpenClaw</div><div class="text-[11px] mt-0.5" style="color:var(--t3)" data-page-node-id="6oGpf0AOc50rDPE1Zn7HuH">16 次活动 · 最近 09-06 08:12</div></div>
+          <div class="bg-white rounded-xl px-4 py-3" style="border:1px solid var(--line);" data-page-node-id="1iDQSsvlsRwewHtPgRQ3pI"><div class="text-[12px] font-semibold" data-page-node-id="oDDx1e8OGopnKlSoIhhhtI">Codex</div><div class="text-[11px] mt-0.5" style="color:var(--t3)" data-page-node-id="eOe4VATnj4hO63JVAgvv6E">23 次活动 · 最近 09-06 11:40</div></div>
+          <div class="bg-white rounded-xl px-4 py-3" style="border:1px solid var(--line);" data-page-node-id="Dpu6zVJaCJj0t1agt7qmsw"><div class="text-[12px] font-semibold" data-page-node-id="dAHnyBjVakRFqAY7Cl5rCw">WorkBuddy</div><div class="text-[11px] mt-0.5" style="color:var(--t3)" data-page-node-id="bcP08RALGR8mcMooydVvoR">8 次活动 · 最近 09-06 15:02</div></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+</body>
+</html>

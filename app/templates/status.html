@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}系统状态 - 内容生产中心{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <div class="flex items-start justify-between gap-4 mb-6">
+        <div>
+            <p class="text-xs font-semibold tracking-[0.16em] text-brand-600 uppercase">System health</p>
+            <h1 class="text-2xl font-bold text-gray-800 mt-1">系统状态</h1>
+            <p class="text-sm text-gray-500 mt-1">用于确认软件已启动，并定位数据库、资料监听和定时任务的问题。</p>
+        </div>
+        <button onclick="loadHealth()" class="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50">重新检查</button>
+    </div>
+
+    <div id="healthLoading" class="rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-500">正在检查系统状态…</div>
+    <div id="healthError" class="hidden rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700"></div>
+    <div id="healthContent" class="hidden space-y-4">
+        <section class="rounded-xl border border-gray-200 bg-white p-5">
+            <div class="flex items-center gap-3"><span id="overallDot" class="w-3 h-3 rounded-full"></span><div><h2 id="overallTitle" class="font-semibold text-gray-800"></h2><p id="overallMessage" class="text-sm text-gray-500 mt-1"></p></div></div>
+        </section>
+        <section class="rounded-xl border border-gray-200 bg-white overflow-hidden">
+            <div class="px-5 py-3 border-b border-gray-100"><h2 class="font-semibold text-gray-800">组件检查</h2></div>
+            <div id="componentList" class="divide-y divide-gray-100"></div>
+        </section>
+        <section class="rounded-xl border border-brand-100 bg-brand-50 p-5 text-sm text-brand-900">
+            <strong>恢复方式：</strong>如果服务本身未启动，请双击 <code>start.bat</code>。启动失败会在 <code>data\logs\launcher.log</code> 和当天的服务日志中记录原因；端口被其他程序占用时，启动器不会强制结束它。
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const label = {ready:'正常', running:'运行中', degraded:'需要注意', stopped:'未运行', failed:'失败'};
+const color = {ready:'bg-emerald-500', running:'bg-emerald-500', degraded:'bg-amber-400', stopped:'bg-gray-400', failed:'bg-red-500'};
+function escapeHtml(value) { return String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function loadHealth() {
+    document.getElementById('healthLoading').classList.remove('hidden');
+    document.getElementById('healthError').classList.add('hidden');
+    document.getElementById('healthContent').classList.add('hidden');
+    try {
+        const response = await fetch('/api/health', {cache:'no-store'});
+        const body = await response.json();
+        document.getElementById('healthLoading').classList.add('hidden');
+        document.getElementById('healthContent').classList.remove('hidden');
+        const overall = body.status || 'failed';
+        document.getElementById('overallDot').className = `w-3 h-3 rounded-full ${color[overall] || color.failed}`;
+        document.getElementById('overallTitle').textContent = `系统${label[overall] || overall}`;
+        document.getElementById('overallMessage').textContent = overall === 'ready' ? '服务、数据库、资料监听和定时任务均可用。' : overall === 'degraded' ? '工作台可使用；请查看下方需要注意的组件。' : '请查看服务日志，并确认数据库和端口状态。';
+        const components = body.components || {};
+        document.getElementById('componentList').innerHTML = Object.entries(components).map(([key, item]) => `
+            <div class="px-5 py-4 flex items-start gap-3"><span class="w-2.5 h-2.5 rounded-full mt-1.5 ${color[item.status] || color.failed}"></span><div class="min-w-0"><div class="font-medium text-sm text-gray-800">${escapeHtml({database:'数据库',watcher:'OpenClaw 资料监听',scheduler:'定时任务'}[key] || key)} <span class="text-xs font-normal text-gray-400">${escapeHtml(label[item.status] || item.status)}</span></div><p class="text-xs text-gray-500 mt-1 break-all">${escapeHtml(item.message || item.path || item.watch_dir || (item.jobs !== undefined ? `已加载 ${item.jobs} 项任务` : '正常'))}</p></div></div>`).join('');
+    } catch (error) {
+        document.getElementById('healthLoading').classList.add('hidden');
+        const box = document.getElementById('healthError');
+        box.textContent = `无法连接本地服务：${error.message}。请双击 start.bat 后再试。`;
+        box.classList.remove('hidden');
+    }
+}
+loadHealth();
+</script>
+{% endblock %}

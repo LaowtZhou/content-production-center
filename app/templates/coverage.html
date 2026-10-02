@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}覆盖记录{% endblock %}
+{% block nav_coverage %}bg-brand-50 text-brand-700 font-medium{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl">
+    <h1 class="text-xl font-bold text-gray-800 mb-4">覆盖记录</h1>
+    <p class="text-sm text-gray-500 mb-6">记录已发布内容的核心主题，防止重复选题。评分引擎会参考这些记录检查新颖度。</p>
+
+    <!-- 添加覆盖记录 -->
+    <form onsubmit="addCoverage(event)" class="bg-white rounded-lg border border-gray-200 p-5 mb-6 space-y-3">
+        <h2 class="text-sm font-semibold text-gray-700">添加覆盖记录</h2>
+        <div class="grid grid-cols-2 gap-3">
+            <input type="text" name="title" required placeholder="已发布内容标题" class="px-3 py-2 border border-gray-300 rounded text-sm">
+            <select name="platform" class="px-3 py-2 border border-gray-300 rounded text-sm">
+                <option value="bilibili">B站</option>
+                <option value="wechat">公众号</option>
+                <option value="xiaohongshu">小红书</option>
+                <option value="other">其他</option>
+            </select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+            <input type="date" name="published_at" class="px-3 py-2 border border-gray-300 rounded text-sm">
+            <input type="text" name="content_url" placeholder="内容链接（可选）" class="px-3 py-2 border border-gray-300 rounded text-sm">
+        </div>
+        <input type="text" name="key_topics" placeholder="关键主题词（逗号分隔）" class="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+        <button type="submit" class="px-4 py-2 bg-brand-500 text-white text-sm rounded hover:bg-brand-600">添加</button>
+    </form>
+
+    <!-- 覆盖记录列表 -->
+    {% if records %}
+    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                    <th class="text-left px-4 py-2 font-medium text-gray-600">标题</th>
+                    <th class="text-left px-4 py-2 font-medium text-gray-600">平台</th>
+                    <th class="text-left px-4 py-2 font-medium text-gray-600">发布日期</th>
+                    <th class="text-left px-4 py-2 font-medium text-gray-600">关键词</th>
+                    <th class="px-4 py-2"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in records %}
+                <tr class="border-b border-gray-50 hover:bg-gray-50">
+                    <td class="px-4 py-2 text-gray-800">{{ r.title }}</td>
+                    <td class="px-4 py-2 text-gray-500">{{ r.platform }}</td>
+                    <td class="px-4 py-2 text-gray-500">{{ r.published_at[:10] if r.published_at else '-' }}</td>
+                    <td class="px-4 py-2 text-gray-500 text-xs">{{ r.key_topics }}</td>
+                    <td class="px-4 py-2"><button onclick="deleteCoverage({{ r.id }})" class="text-xs text-red-500 hover:underline">删除</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-12 text-gray-400">
+        <p>暂无覆盖记录</p>
+        <p class="text-xs mt-1">添加已发布内容的主题词，评分引擎会用来检查选题新颖度</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function addCoverage(e) {
+    e.preventDefault();
+    const form = e.target;
+    const kwsStr = form.key_topics.value.trim();
+    const kws = kwsStr ? kwsStr.split(',').map(t => t.trim()).filter(t => t) : [];
+    const body = {
+        title: form.title.value,
+        platform: form.platform.value,
+        published_at: form.published_at.value || null,
+        content_url: form.content_url.value,
+        key_topics: kws,
+    };
+    await apiPost('/api/coverage', body);
+    location.reload();
+}
+
+async function deleteCoverage(id) {
+    if (!confirm('确定删除？')) return;
+    await fetch(`/api/coverage/${id}`, { method: 'DELETE' });
+    location.reload();
+}
+</script>
+{% endblock %}

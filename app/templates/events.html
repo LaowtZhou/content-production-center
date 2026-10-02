@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}事件归并 - 内容生产中心{% endblock %}
+{% block nav_tree %}active bg-brand-50{% endblock %}
+
+{% block content %}
+<section class="hero" style="margin-bottom:16px;">
+    <div style="padding:16px 24px 14px;border-bottom:1px solid var(--line-soft);">
+        <p style="font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--acc-d);margin:0 0 2px;">Event Threads</p>
+        <h1 class="hero-title" style="margin:0;">事件归并</h1>
+        <p style="font-size:12px;color:var(--t2);margin:6px 0 0;">
+            把"同一件事"被多家媒体、多天报道的多条选题，归成一条事件线。
+            <b>平台只做粗筛</b>（按共享实体词摆候选），<b>是否同一件事由 Agent 判定</b>。
+        </p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);">
+        <div class="pipe-stage" style="--stage-c:#2F7E7A;">
+            <div class="pipe-num num" style="font-size:20px;">{{ scanned }}</div>
+            <div style="font-size:11px;color:var(--t2);margin-top:3px;">本次扫描选题</div>
+        </div>
+        <div class="pipe-stage" style="--stage-c:#D97E00;">
+            <div class="pipe-num num" style="font-size:20px;">{{ candidates|length }}</div>
+            <div style="font-size:11px;color:var(--t2);margin-top:3px;">候选组（待 Agent 判定）</div>
+        </div>
+        <div class="pipe-stage" style="--stage-c:#1E9E6A;">
+            <div class="pipe-num num" style="font-size:20px;">{{ threads|length }}</div>
+            <div style="font-size:11px;color:var(--t2);margin-top:3px;">已归并事件线</div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== 已归并的事件线 ===== -->
+<div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 10px;">
+    <h2 style="font-size:15px;font-weight:700;margin:0;color:var(--t1);">已归并事件线 <span style="font-size:12px;font-weight:400;color:var(--t3);">({{ threads|length }})</span></h2>
+    <span style="font-size:11px;color:var(--t3);">一条线 = 同一件事的历次出现</span>
+</div>
+
+{% if threads %}
+<div style="display:flex;flex-direction:column;gap:12px;margin-bottom:24px;">
+    {% for th in threads %}
+    <div class="hero" style="padding:0;">
+        <div style="padding:10px 16px;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;justify-content:space-between;gap:10px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="chip chip-lv" style="font-family:monospace;font-size:11px;">{{ th.event_key }}</span>
+                <span style="font-size:12px;color:var(--t2);">{{ th.count }} 条 · {{ th.first_date or '?' }} ~ {{ th.last_date or '?' }}</span>
+            </div>
+            <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;"
+                    data-ids='{{ th.members|map(attribute="id")|list|tojson }}'
+                    onclick="unmergeFromBtn(this)">撤销本条线</button>
+        </div>
+        <div style="padding:8px 16px 12px;display:flex;flex-direction:column;gap:6px;">
+            {% for m in th.members %}
+            <div style="display:flex;align-items:center;gap:10px;font-size:12px;">
+                <span class="num" style="color:var(--t3);width:52px;flex-shrink:0;">{{ m.news_date or '无日期' }}</span>
+                <span class="chip chip-src" style="flex-shrink:0;">{{ m.source_name or '未知源' }}</span>
+                <a href="/topics/{{ m.id }}" style="color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ m.title }}</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="hero" style="text-align:center;padding:40px 20px;margin-bottom:24px;">
+    <p style="color:var(--t2);font-size:13px;margin:0;">还没有归并过任何事件线。</p>
+    <p style="font-size:12px;color:var(--t3);margin-top:8px;">让 Agent 按下面的手册跑一遍，或先看候选组。</p>
+</div>
+{% endif %}
+
+<!-- ===== 候选组 ===== -->
+<h2 style="font-size:15px;font-weight:700;margin:0 0 10px;color:var(--t1);">候选组 <span style="font-size:12px;font-weight:400;color:var(--t3);">({{ candidates|length }})</span></h2>
+<p style="font-size:11px;color:var(--t3);margin:0 0 10px;">按"标题共享实体词"粗筛，<b>不是结论</b>。点「复制 merge」把该组交给 Agent 判定。</p>
+
+{% if candidates %}
+<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px;">
+    {% for g in candidates %}
+    <div class="news-card" style="padding:12px 16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="chip" style="background:var(--line-soft);color:var(--t1);font-weight:600;">{{ g.shared_token }}</span>
+                <span style="font-size:11px;color:var(--t3);">{{ g.count }} 条共享此实体</span>
+            </div>
+            <button class="btn btn-ghost" style="padding:4px 10px;font-size:11px;"
+                    onclick='copyMerge({{ g.topics|map(attribute="id")|list|tojson }}, {{ g.shared_token|tojson }})'>复制 merge</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px;">
+            {% for t in g.topics %}
+            <div style="display:flex;align-items:center;gap:10px;font-size:12px;">
+                <span class="num" style="color:var(--t3);width:52px;flex-shrink:0;">{{ t.news_date or '无日期' }}</span>
+                <a href="/topics/{{ t.id }}" style="color:var(--t1);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ t.title }}</a>
+                {% if t.event_key %}<span class="chip chip-lv" style="font-size:10px;flex-shrink:0;">已归并</span>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="hero" style="text-align:center;padding:30px 20px;margin-bottom:24px;">
+    <p style="color:var(--t2);font-size:13px;margin:0;">最近没有共享实体词的候选。换更长的天数或用具体日期再试。</p>
+</div>
+{% endif %}
+
+<!-- ===== Agent 工作手册 ===== -->
+<details class="hero" style="padding:0;">
+    <summary style="padding:14px 18px;cursor:pointer;user-select:none;font-size:14px;font-weight:700;color:var(--t1);">
+        Agent 工作手册（归并要求全文） ▾
+    </summary>
+    <pre style="margin:0;padding:16px 18px;border-top:1px solid var(--line-soft);white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.7;color:var(--t2);font-family:ui-monospace,Consolas,monospace;">{{ manual_text }}</pre>
+</details>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function copyMerge(ids, token) {
+    const payload = {
+        topic_ids: ids,
+        event_key: '',
+        note: '候选实体：' + token + '。请 Agent 判定这些是否为同一事件，并在 note 里写明理由。',
+        agent: 'manual'
+    };
+    const text = 'POST /api/events/merge\n' + JSON.stringify(payload, null, 2);
+    try {
+        await navigator.clipboard.writeText(text);
+        toast('已复制 ' + ids.length + ' 条的 merge 请求');
+    } catch (e) {
+        window.prompt('复制下面的请求：', text);
+    }
+}
+
+async function unmergeFromBtn(btn) {
+    let ids = [];
+    try { ids = JSON.parse(btn.dataset.ids || '[]'); } catch (e) { ids = []; }
+    if (!ids.length) { toast('该线没有成员'); return; }
+    if (!confirm('撤销这条事件线？' + ids.length + ' 条选题将清空 event_key。')) return;
+    const r = await fetch('/api/events/unmerge', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ topic_ids: ids, reason: '界面撤销', agent: 'manual' })
+    });
+    if (r.ok) location.reload(); else toast('撤销失败');
+}
+</script>
+{% endblock %}

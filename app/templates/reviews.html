@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}复盘与方法 - 内容生产中心{% endblock %}
+{% block nav_reviews %}bg-brand-50 text-brand-700{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl">
+    <div class="mb-6">
+        <p class="text-xs font-semibold tracking-[0.16em] text-brand-600 uppercase">Learning loop</p>
+        <h1 class="text-2xl font-bold text-gray-800 mt-1">复盘与方法候选</h1>
+        <p class="text-sm text-gray-500 mt-1">先把值得复盘的发布事实沉淀为案例，再由你和 Codex 提炼方法；确认后才标记为待更新的 SKILL。</p>
+    </div>
+    <div class="grid sm:grid-cols-4 gap-3 mb-5">
+        <div class="rounded-xl border border-gray-200 bg-white p-4"><div class="text-xs text-gray-500">复盘候选</div><div id="candidateCount" class="text-2xl font-bold text-gray-800 mt-1">{{ review_counts.candidate or 0 }}</div></div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4"><div class="text-xs text-gray-500">复盘中</div><div class="text-2xl font-bold text-brand-600 mt-1">{{ review_counts.in_review or 0 }}</div></div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4"><div class="text-xs text-gray-500">方法候选</div><div class="text-2xl font-bold text-gray-800 mt-1">{{ method_counts.candidate or 0 }}</div></div>
+        <div class="rounded-xl border border-gray-200 bg-white p-4"><div class="text-xs text-gray-500">待写入 SKILL</div><div class="text-2xl font-bold text-emerald-700 mt-1">{{ method_counts.promoted or 0 }}</div></div>
+    </div>
+    <div class="grid lg:grid-cols-2 gap-5">
+        <section class="bg-white rounded-xl border border-gray-200">
+            <div class="px-5 py-3 border-b border-gray-100"><h2 class="font-semibold text-gray-800">复盘候选区</h2><p class="text-xs text-gray-400 mt-1">轻量模板：表现事实 → 当时判断 → 可复用条件 → 下次动作。只填真正有价值的点。</p></div>
+            <div id="reviewList" class="divide-y divide-gray-100"><p class="p-5 text-sm text-gray-400">加载中…</p></div>
+        </section>
+        <section class="bg-white rounded-xl border border-gray-200">
+            <div class="px-5 py-3 border-b border-gray-100"><h2 class="font-semibold text-gray-800">方法候选库</h2></div>
+            <div id="methodList" class="divide-y divide-gray-100"><p class="p-5 text-sm text-gray-400">加载中…</p></div>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const esc = (value) => String(value || '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+async function loadLearning() {
+    const [reviews, methods] = await Promise.all([fetch('/api/reviews').then(r => r.json()), fetch('/api/methods').then(r => r.json())]);
+    document.getElementById('reviewList').innerHTML = reviews.length ? reviews.map(item => `
+        <article class="p-5"><div class="flex justify-between gap-3"><div><h3 class="font-medium text-gray-800">${esc(item.title_snapshot || item.topic_title || '未命名内容')}</h3><p class="text-xs text-gray-500 mt-1">${esc(item.trigger_reason || '人工标记')} · ${esc(item.status)}</p></div><button onclick="startReview('${item.id}')" class="text-xs text-brand-600 hover:underline">进入复盘</button></div>
+        <p class="text-xs text-gray-500 mt-3 whitespace-pre-wrap">${esc(item.human_notes || item.ai_notes || '尚未填写复盘笔记')}</p></article>`).join('') : '<p class="p-5 text-sm text-gray-400">暂无候选。先在生产任务页同步 OPC-ERP，然后对值得复盘的内容标记。</p>';
+    document.getElementById('methodList').innerHTML = methods.length ? methods.map(item => `
+        <article class="p-5"><div class="flex justify-between gap-3"><div><h3 class="font-medium text-gray-800">${esc(item.title)}</h3><p class="text-xs text-gray-500 mt-1">目标：${esc(item.target_skill_name)} · ${esc(item.status)}</p></div>${item.status === 'candidate' ? `<button onclick="promoteMethod('${item.id}')" class="text-xs text-brand-600 hover:underline">确认升格</button>` : ''}</div><p class="text-xs text-gray-600 mt-3 whitespace-pre-wrap">${esc(item.method_text)}</p></article>`).join('') : '<p class="p-5 text-sm text-gray-400">复盘完成后，在案例中创建方法候选。</p>';
+}
+async function startReview(id) {
+    const notes = prompt('填写你这次最想保留的判断（可稍后继续补充）：');
+    if (notes === null) return;
+    await fetch(`/api/reviews/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:'in_review',human_notes:notes})});
+    const create = confirm('现在把一个可复用的方法沉淀到候选库吗？');
+    if (create) {
+        const title = prompt('方法标题：'); const methodText = prompt('方法内容：');
+        if (title && methodText) await fetch(`/api/reviews/${id}/methods`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,method_text:methodText})});
+    }
+    loadLearning();
+}
+async function promoteMethod(id) {
+    const note = prompt('确认理由或写入 SKILL 时的注意事项：') || '';
+    const response = await fetch(`/api/methods/${id}/promote`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({promotion_note:note})});
+    const result = await response.json(); alert(result.message || result.detail || '已更新'); loadLearning();
+}
+loadLearning();
+</script>
+{% endblock %}

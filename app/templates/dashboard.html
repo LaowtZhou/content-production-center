@@ -1,0 +1,399 @@
+{% extends "base.html" %}
+{% block title %}选题看板 - 内容生产中心{% endblock %}
+{% block nav_dashboard %}active bg-brand-50{% endblock %}
+
+{% block sidebar_extra %}
+<div class="nav-sec">日期导航</div>
+{% set ns = namespace(month=none, first=true) %}
+{% for d in dates %}
+    {% set m = d.news_date[:7] %}
+    {% if m != ns.month %}
+        {% if not ns.first %}</details>{% endif %}
+        <details class="date-group" {% if ns.first %}open{% endif %}>
+        <summary><span>{{ m[:4] }} 年 {{ m[5:] }} 月</span><span class="arrow">▶</span></summary>
+        {% set ns.month = m %}
+        {% set ns.first = false %}
+    {% endif %}
+    <a href="/?news_date={{ d.news_date }}{% if current_status %}&status={{ current_status }}{% endif %}{% if current_source %}&source_name={{ current_source }}{% endif %}{% if current_category %}&category={{ current_category }}{% endif %}&sort={{ current_sort }}&period={{ current_period }}"
+       class="date-item {% if d.news_date == current_date and current_scope != 'period' %}active{% endif %}">
+        <span>{{ d.news_date[5:] }}</span>
+        <span class="cnt num">{{ d.cnt }}</span>
+    </a>
+{% endfor %}
+{% if dates %}</details>{% endif %}
+{% endblock %}
+
+{% block content %}
+<!-- ===== 英雄面板：今日运营主线 ===== -->
+<section class="hero">
+    <div style="padding:16px 28px 12px;border-bottom:1px solid var(--line-soft);display:flex;justify-content:space-between;align-items:center;gap:16px;position:relative;">
+        <div>
+            <p style="font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--acc-d);margin:0 0 2px;">Content Operations</p>
+            <h1 class="hero-title">今日运营</h1>
+        </div>
+        <span id="overviewRefreshStatus" class="refresh-pill"><span style="width:6px;height:6px;border-radius:99px;background:var(--hi);box-shadow:0 0 8px var(--hi);"></span>自动更新中</span>
+    </div>
+
+    <!-- 流水线六阶段 -->
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);border-bottom:1px solid var(--line-soft);">
+        {% set stage_colors = ['#D97E00','#2F7E7A','#1E9E6A','#C4572E','#B0506F','#5B6B7C'] %}
+        {% for stage in overview.pipeline %}
+        <a href="{{ stage.href }}" class="pipe-stage" style="--stage-c:{{ stage_colors[loop.index0 % 6] }};">
+            <div class="pipe-num num" id="pipeline-{{ stage.key }}" data-count="{{ stage.count }}">{{ stage.count }}</div>
+            <div style="font-size:11px;color:var(--t2);margin-top:3px;">{{ stage.label }}</div>
+        </a>
+        {% endfor %}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:20px;padding:20px 28px 22px;position:relative;">
+        <div class="next-card">
+            <div style="font-size:11px;color:var(--t3);">接下来</div>
+            <div id="nextActionTitle" style="font-weight:700;margin-top:6px;font-size:15px;">{{ overview.next_action.title }}</div>
+            <p id="nextActionDetail" style="font-size:12px;color:var(--t2);margin:5px 0 0;">{{ overview.next_action.detail }}</p>
+            <a id="nextActionLink" href="{{ overview.next_action.href }}" class="btn btn-acc" style="margin-top:12px;padding:7px 18px;">{{ overview.next_action.label }} →</a>
+        </div>
+        <div>
+            <div style="font-size:11px;color:var(--t3);margin-bottom:8px;">系统依赖</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+                {% for item in overview.health %}
+                <div style="display:flex;align-items:center;gap:8px;font-size:12px;">
+                    <span style="width:7px;height:7px;border-radius:99px;flex-shrink:0;{% if item.status == 'ready' or item.status == 'running' %}background:var(--hi);box-shadow:0 0 8px var(--hi);{% else %}background:var(--mid);box-shadow:0 0 8px var(--mid);{% endif %}"></span>
+                    <span style="color:var(--t1);">{{ item.label }}</span>
+                    <span style="color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{ item.detail }}">{{ item.detail }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== 吸顶工具栏：搜索 + 来源筛选 + 批量 ===== -->
+<div class="toolbar-sticky" style="margin-bottom:14px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <form action="/" method="GET" style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+            {% if current_date %}<input type="hidden" name="news_date" value="{{ current_date }}">{% endif %}
+            {% if current_status %}<input type="hidden" name="status" value="{{ current_status }}">{% endif %}
+            {% if current_category %}<input type="hidden" name="category" value="{{ current_category }}">{% endif %}
+            <input type="hidden" name="sort" value="{{ current_sort }}">
+            <div style="position:relative;flex:1;max-width:300px;">
+                <input type="text" name="q" value="{{ current_q }}" placeholder="搜索标题/内容..." class="input" style="width:100%;padding-left:32px;">
+                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--t3);font-size:13px;">&#x1F50D;</span>
+            </div>
+            {% if source_names %}
+            <select name="source_name" onchange="this.form.submit()" class="select" style="max-width:150px;">
+                <option value="">全部来源</option>
+                {% for sn in source_names %}
+                <option value="{{ sn }}" {% if sn == current_source %}selected{% endif %}>{{ sn }}</option>
+                {% endfor %}
+            </select>
+            {% endif %}
+            <button type="submit" class="btn btn-acc" style="flex-shrink:0;">搜索</button>
+            {% if current_q or current_source %}
+            <a href="/{% if current_date %}?news_date={{ current_date }}{% endif %}" style="padding:6px 8px;font-size:12px;color:var(--t3);flex-shrink:0;">清除</a>
+            {% endif %}
+        </form>
+        <button id="batchToggleBtn" onclick="toggleBatchMode()" class="btn btn-ghost" style="flex-shrink:0;">&#x2610; 批量 <kbd>Ctrl+B</kbd></button>
+    </div>
+</div>
+
+<!-- ===== 统计卡片：素材视角 ===== -->
+<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;">
+    <div class="stat"><div class="num" style="font-size:18px;font-weight:700;color:var(--t1);">{{ status_counts.total }}</div><div style="font-size:10px;color:var(--t3);margin-top:2px;">素材总数</div></div>
+    <div class="stat"><div class="num" style="font-size:18px;font-weight:700;color:var(--t2);">{{ status_counts.unscored }}</div><div style="font-size:10px;color:var(--t3);margin-top:2px;">待评分</div></div>
+    <div class="stat"><div class="num" style="font-size:18px;font-weight:700;color:var(--t2);">{{ status_counts.unused }}</div><div style="font-size:10px;color:var(--t3);margin-top:2px;">未用</div></div>
+    <div class="stat"><div class="num" style="font-size:18px;font-weight:700;color:var(--hi);">{{ status_counts.used }}</div><div style="font-size:10px;color:var(--t3);margin-top:2px;">已用</div></div>
+    <div class="stat"><div class="num" style="font-size:18px;font-weight:700;color:var(--t3);">{{ status_counts.dropped }}</div><div style="font-size:10px;color:var(--t3);margin-top:2px;">弃用</div></div>
+</div>
+
+<!-- ===== 类别聚焦：先选周期看哪类多，再从高分挑 ===== -->
+{% set base_qs %}news_date={{ current_date or '' }}&status={{ current_status or '' }}&source_name={{ current_source or '' }}&q={{ current_q or '' }}&sort={{ current_sort }}&period={{ current_period }}&scope={{ current_scope }}{% endset %}
+<div style="margin-bottom:16px;">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
+        <h3 style="font-size:13px;font-weight:700;color:var(--t1);margin:0;">类别聚焦</h3>
+        <span style="font-size:11px;color:var(--t3);">7 类固定 · 大字=该周期条数 · 小字=已评分/最高分/全库 · 先看哪类多，再从高分挑</span>
+    </div>
+    <div class="seg" style="margin-bottom:8px;">
+        {% for p in periods %}
+        <a href="/?{{ base_qs | replace('period=' + current_period, 'period=' + p.key) }}"
+           class="{% if p.key == current_period %}on{% endif %}">{{ p.label }}</a>
+        {% endfor %}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;">
+        {% for c in categories %}
+        <a href="/?{{ base_qs | replace('scope=' + current_scope, 'scope=period') }}&category={{ c.name }}"
+           class="stat cat-card {% if current_category == c.name %}cat-on{% endif %}"
+           title="{{ c.desc }}"
+           style="text-decoration:none;display:block;{% if current_category == c.name %}outline:2px solid var(--acc);outline-offset:-2px;{% endif %}">
+            <div class="num" style="font-size:18px;font-weight:700;color:{% if c.total %}var(--t1){% else %}var(--t3){% endif %};">{{ c.total }}</div>
+            <div style="font-size:11px;color:var(--t2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ c.name }}</div>
+            <div style="font-size:10px;color:var(--t3);margin-top:2px;">
+                评分 {{ c.scored }} · {% if c.max_score is not none %}最高 <b class="num">{{ c.max_score }}</b>{% else %}暂无评分{% endif %} · 全库 {{ c.lib_total }}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    <div style="margin-top:8px;font-size:12px;color:var(--t2);display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+        <span>{{ period_text }}（{{ period_range }}）合计 <b class="num">{{ period_total }}</b> 条 · 点类别看该周期明细</span>
+        {% if current_category %}
+        <span>已筛类别：<b>{{ current_category }}</b>
+            <a href="/?{{ base_qs | replace('scope=' + current_scope, 'scope=date') }}" style="margin-left:6px;color:var(--acc);text-decoration:none;">清除类别筛选</a>
+        </span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- ===== 排序切换 ===== -->
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;font-size:12px;">
+    <span style="color:var(--t3);">排序：</span>
+    <a href="/?{{ base_qs | replace('sort=' + current_sort, 'sort=score') }}"
+       style="padding:3px 12px;border-radius:99px;text-decoration:none;{% if current_sort == 'score' %}background:var(--acc);color:#fff;{% else %}background:var(--line-soft);color:var(--t2);{% endif %}">按评分↓</a>
+    <a href="/?{{ base_qs | replace('sort=' + current_sort, 'sort=date') }}"
+       style="padding:3px 12px;border-radius:99px;text-decoration:none;{% if current_sort == 'date' %}background:var(--acc);color:#fff;{% else %}background:var(--line-soft);color:var(--t2);{% endif %}">按日期</a>
+</div>
+
+<!-- ===== 标题 + 状态分段筛选 ===== -->
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
+    <div>
+        <h2 style="font-size:17px;font-weight:700;margin:0;color:var(--t1);">
+            {% if current_q %}搜索: "{{ current_q }}"{% elif current_source %}来源: "{{ current_source }}"{% elif current_scope == 'period' %}{{ period_text }}{% if current_category %} · {{ current_category }}{% endif %}{% else %}{{ current_date or '全部素材' }}{% endif %}
+            <span style="font-size:12px;font-weight:400;color:var(--t3);margin-left:8px;">({{ topics|length }} 条)</span>
+        </h2>
+        {% if date_range and date_range.min_d %}
+        <p style="font-size:11px;color:var(--t3);margin:3px 0 0;">
+            数据: {{ date_range.min_d }} ~ {{ date_range.max_d }} · {{ date_range.days }} 天
+            {% if current_source %}· 来源: {{ current_source }}{% endif %}
+        </p>
+        {% endif %}
+    </div>
+    <div class="seg">
+        <a href="/?{{ base_qs | replace('status=' + (current_status or ''), 'status=') }}" class="{% if not current_status %}on{% endif %}">全部</a>
+        <a href="/?{{ base_qs | replace('status=' + (current_status or ''), 'status=unscored') }}" class="{% if current_status == 'unscored' %}on{% endif %}">待评分</a>
+        <a href="/?{{ base_qs | replace('status=' + (current_status or ''), 'status=scored') }}" class="{% if current_status == 'scored' %}on{% endif %}">已评分</a>
+        <a href="/?{{ base_qs | replace('status=' + (current_status or ''), 'status=unused') }}" class="{% if current_status == 'unused' %}on{% endif %}">未用</a>
+        <a href="/?{{ base_qs | replace('status=' + (current_status or ''), 'status=used') }}" class="{% if current_status == 'used' %}on{% endif %}">已用</a>
+        <a href="/?{{ base_qs | replace('status=' + (current_status or ''), 'status=dropped') }}" class="{% if current_status == 'dropped' %}on{% endif %}">弃用</a>
+    </div>
+</div>
+
+<!-- ===== 选题列表 ===== -->
+{% if topics %}
+<div style="display:flex;flex-direction:column;gap:10px;" id="topicList">
+    {% for t in topics %}
+    {% if t.total_score is not none and t.total_score >= 7 %}{% set band = 'hi' %}{% elif t.total_score is not none and t.total_score >= 4 %}{% set band = 'mid' %}{% else %}{% set band = 'lo' %}{% endif %}
+    <div class="news-card" data-topic-id="{{ t.id }}" style="--band-c:var(--{{ band }});padding:16px 18px 16px 20px;">
+        <div style="display:flex;gap:16px;align-items:flex-start;">
+            <!-- 批量选择框 -->
+            <div class="batch-checkbox hidden" style="padding-top:3px;">
+                <input type="checkbox" class="topic-check" value="{{ t.id }}" onchange="updateBatchCount()"
+                       style="width:15px;height:15px;accent-color:var(--acc);cursor:pointer;">
+            </div>
+
+            <!-- 主内容 -->
+            <div style="flex:1;min-width:0;">
+                <a href="/topics/{{ t.id }}" class="card-title">{{ t.title }}</a>
+                {% if t.summary %}
+                <p style="font-size:12px;color:var(--t2);margin:6px 0 0;line-height:1.6;">{{ t.summary[:120] }}{% if t.summary|length > 120 %}...{% endif %}</p>
+                {% endif %}
+
+                {% if t.key_angle or (t.recommended_format and t.recommended_format not in ['undecided', '不推荐制作', '不推荐单独制作']) %}
+                <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;">
+                    {% if t.key_angle %}
+                    <span class="chip chip-angle">&#x1F4A1; {{ t.key_angle[:60] }}</span>
+                    {% endif %}
+                    {% if t.recommended_format and t.recommended_format not in ['undecided', '不推荐制作', '不推荐单独制作'] %}
+                    <span class="chip chip-lv">{{ t.recommended_format[:20] }}</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+                    {% if t.source_name %}<span class="chip chip-src">{{ t.source_name }}</span>{% endif %}
+                    {% if t.source_level %}<span class="chip {% if t.source_level.startswith('一级') %}chip-lv1{% else %}chip-lv{% endif %}">{{ t.source_level }}</span>{% endif %}
+                    {% if t.original_url %}<span style="font-size:10px;color:var(--t3);">&#x1F517; 有原文</span>{% endif %}
+                </div>
+
+                {% if t.traffic_reasoning or t.opinion_reasoning or t.novelty_reasoning %}
+                <details style="margin-top:6px;">
+                    <summary style="font-size:10px;color:var(--t3);cursor:pointer;user-select:none;">▸ 查看评分理由</summary>
+                    <div class="reason-box" style="font-size:11px;color:var(--t2);">
+                        {% if t.traffic_reasoning %}<div><b style="color:var(--t1);">流量:</b> {{ t.traffic_reasoning[:80] }}{% if t.traffic_reasoning|length > 80 %}...{% endif %}</div>{% endif %}
+                        {% if t.opinion_reasoning %}<div><b style="color:var(--t1);">观点:</b> {{ t.opinion_reasoning[:80] }}{% if t.opinion_reasoning|length > 80 %}...{% endif %}</div>{% endif %}
+                        {% if t.novelty_reasoning %}<div><b style="color:var(--t1);">新颖:</b> {{ t.novelty_reasoning[:80] }}{% if t.novelty_reasoning|length > 80 %}...{% endif %}</div>{% endif %}
+                    </div>
+                </details>
+                {% endif %}
+            </div>
+
+            <!-- 右侧一体面板：使用状态 + 分数 + 操作 -->
+            <div class="meta-unit">
+                <span class="st {{ statusClass(t.status) }}">{{ statusLabel(t.status) }}</span>
+                {% if t.total_score is none %}<span style="font-size:10px;color:var(--t3);">未评分</span>{% endif %}
+                {% if t.total_score is not none %}
+                <div class="score-wrap">
+                    <div class="num sc-{{ band }}" style="font-size:22px;font-weight:700;line-height:1;">{{ formatScore(t.total_score) }}</div>
+                    <div style="width:56px;height:4px;border-radius:99px;background:var(--line-soft);margin:6px auto 0;overflow:hidden;">
+                        <div class="bar-{{ band }}" style="height:100%;border-radius:99px;width:{{ (t.total_score * 10)|round|int }}%;"></div>
+                    </div>
+                    {% if t.traffic_score is not none %}
+                    <div class="score-tip">
+                        <div class="tip-row"><span>流量潜力 ×0.4</span><b class="num">{{ formatScore(t.traffic_score) }}</b></div>
+                        <div class="tip-row"><span>观点匹配 ×0.4</span><b class="num">{{ formatScore(t.opinion_score) }}</b></div>
+                        <div class="tip-row"><span>新颖度 ×0.2</span><b class="num">{{ formatScore(t.novelty_score) }}</b></div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                <div class="unit-divider"></div>
+                <div style="display:flex;flex-direction:column;gap:6px;width:100%;align-items:center;">
+                    <label class="usage-check" title="拿这条素材写过内容就勾上">
+                        <input type="checkbox" {% if t.status == 'used' %}checked{% endif %}
+                               onchange="toggleUsage({{ t.id }}, this.checked)">
+                        <span>我用了</span>
+                    </label>
+                    {% if t.status == 'dropped' %}
+                    <button class="btn btn-ghost" style="padding:5px 12px;" onclick="event.preventDefault(); setUsage({{ t.id }}, 'unused')" title="收回成未用">收回</button>
+                    {% else %}
+                    <button class="btn btn-ghost" style="padding:5px 12px;" onclick="event.preventDefault(); setUsage({{ t.id }}, 'dropped')" title="明确不会用这条素材">不用了</button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="hero" style="text-align:center;padding:70px 20px;">
+    <div style="font-size:44px;margin-bottom:14px;opacity:.5;">
+        {% if current_q %}&#x1F50D;{% else %}&#x1F4ED;{% endif %}
+    </div>
+    <p style="color:var(--t2);font-size:14px;margin:0;">
+        {% if current_q %}没有找到匹配"{{ current_q }}"的素材{% elif current_source %}"{{ current_source }}" 来源没有匹配{% else %}这个范围里没有素材{% endif %}
+    </p>
+    <p style="font-size:12px;color:var(--t3);margin-top:8px;">
+        {% if current_q %}尝试其他关键词，或清除搜索查看全部{% elif current_source %}尝试其他来源，或清除筛选{% else %}换个周期，或点左侧其他日期{% endif %}
+    </p>
+</div>
+{% endif %}
+
+<!-- ===== Agent 活动摘要 ===== -->
+{% if agent_stats %}
+<div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--line-soft);">
+    <h3 style="font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--t3);margin:0 0 10px;">Agent 活动摘要</h3>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        {% for a in agent_stats %}
+        <div class="stat">
+            <div style="font-size:12px;font-weight:600;color:var(--t1);">{{ a.agent_name }}</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:3px;">{{ a.cnt }} 次活动 · 最近 {{ a.last_time[:16] }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- 批量操作浮条 -->
+<div id="batchToolbar" class="batch-bar">
+    <span style="font-size:12px;">已选 <strong id="selectedCount" class="num">0</strong> 条</span>
+    <button onclick="selectAll()" class="blink" style="background:none;border:none;">全选本页</button>
+    <button onclick="clearAll()" class="blink" style="background:none;border:none;">清除</button>
+    <button onclick="batchUsage('used')" class="btn btn-acc" style="padding:6px 14px;">批量标记已用</button>
+    <button onclick="batchUsage('unused')" class="btn btn-ghost" style="padding:6px 14px;">恢复未用</button>
+    <button onclick="batchUsage('dropped')" class="btn btn-ghost" style="padding:6px 14px;border-color:var(--lo);color:var(--lo);">批量弃用</button>
+    <button onclick="toggleBatchMode()" class="btn btn-ghost" style="padding:6px 12px;opacity:.6;">退出 <kbd>Esc</kbd></button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ===== 批量操作 =====
+let batchMode = false;
+
+function toggleBatchMode() {
+    batchMode = !batchMode;
+    document.querySelectorAll('.batch-checkbox').forEach(el => el.classList.toggle('hidden', !batchMode));
+    document.getElementById('batchToolbar').classList.toggle('show', batchMode);
+    document.getElementById('batchToggleBtn').innerHTML = batchMode ? '&#x2611; 退出批量 <kbd>Esc</kbd>' : '&#x2610; 批量 <kbd>Ctrl+B</kbd>';
+    if (!batchMode) clearAll();
+}
+
+function selectAll() { document.querySelectorAll('.topic-check').forEach(cb => cb.checked = true); updateBatchCount(); }
+function clearAll() { document.querySelectorAll('.topic-check').forEach(cb => cb.checked = false); updateBatchCount(); }
+function updateBatchCount() { document.getElementById('selectedCount').textContent = document.querySelectorAll('.topic-check:checked').length; }
+function getSelectedIds() { return Array.from(document.querySelectorAll('.topic-check:checked')).map(cb => parseInt(cb.value)); }
+
+// ===== 素材使用状态（未用/已用/弃用）=====
+async function setUsage(id, target) {
+    await apiPost('/api/topics/' + id + '/usage', { status: target });
+    location.reload();
+}
+
+function toggleUsage(id, checked) {
+    setUsage(id, checked ? 'used' : 'unused');
+}
+
+async function batchUsage(target) {
+    const ids = getSelectedIds();
+    if (ids.length === 0) { toast('请先勾选素材'); return; }
+    await apiPost('/api/topics/batch-usage', { topic_ids: ids, status: target });
+    location.reload();
+}
+
+// ===== 键盘：Ctrl+B 批量 / Esc 退出 / J-K 导航 / Enter 打开 =====
+let kbIdx = -1;
+const kbCards = () => Array.from(document.querySelectorAll('#topicList .news-card'));
+function kbMove(d){
+    const cs = kbCards();
+    if(!cs.length) return;
+    kbIdx = Math.min(Math.max(kbIdx + d, 0), cs.length - 1);
+    cs.forEach(c=>c.classList.remove('kb-focus'));
+    const cur = cs[kbIdx];
+    cur.classList.add('kb-focus');
+    cur.scrollIntoView({block:'nearest', behavior:'smooth'});
+}
+document.addEventListener('keydown', function(e) {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA')) return;
+    if (e.ctrlKey && e.key === 'b') { e.preventDefault(); toggleBatchMode(); return; }
+    if (e.key === 'Escape' && batchMode) { toggleBatchMode(); return; }
+    if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') { e.preventDefault(); kbMove(1); }
+    if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp') { e.preventDefault(); kbMove(-1); }
+    if (e.key === 'Enter' && kbIdx >= 0) {
+        const cs = kbCards();
+        if (cs[kbIdx]) window.location.href = '/topics/' + cs[kbIdx].dataset.topicId;
+    }
+    if ((e.key === 'x' || e.key === 'X') && batchMode && kbIdx >= 0) {
+        const cs = kbCards();
+        const cb = cs[kbIdx] && cs[kbIdx].querySelector('.topic-check');
+        if (cb) { cb.checked = !cb.checked; updateBatchCount(); }
+    }
+});
+
+// ===== 运营主线 30 秒自刷新 =====
+async function refreshOperationsOverview() {
+    try {
+        const response = await fetch('/api/operations/overview');
+        if (!response.ok) return;
+        const overview = await response.json();
+        (overview.pipeline || []).forEach(stage => {
+            const node = document.getElementById('pipeline-' + stage.key);
+            if (node) node.textContent = stage.count;
+        });
+        const na = overview.next_action || {};
+        const t = document.getElementById('nextActionTitle'); if (t) t.textContent = na.title || '';
+        const d = document.getElementById('nextActionDetail'); if (d) d.textContent = na.detail || '';
+        const link = document.getElementById('nextActionLink');
+        if (link) { link.href = na.href || '#'; link.textContent = (na.label || '查看') + ' →'; }
+        const rs = document.getElementById('overviewRefreshStatus');
+        if (rs) rs.innerHTML = '<span style="width:6px;height:6px;border-radius:99px;background:var(--hi);box-shadow:0 0 8px var(--hi);"></span>刚刚更新 · ' + new Date().toLocaleTimeString('zh-CN',{hour12:false});
+        const cycle = overview.operator_cycle || {};
+        const cs = document.getElementById('operatorCycleStatus'); if (cs) cs.textContent = cycle.status || 'none';
+        const cc = document.getElementById('operatorCollectorCount'); if (cc) cc.textContent = (cycle.counts || {}).collector || 0;
+        const ec = document.getElementById('operatorEditorialCount'); if (ec) ec.textContent = (cycle.counts || {}).editorial || 0;
+        const pc = document.getElementById('operatorProductionCount'); if (pc) pc.textContent = (cycle.counts || {}).production || 0;
+        const sm = document.getElementById('operatorCycleSummary'); if (sm) sm.textContent = cycle.summary || '尚未运行 Codex 运营周期';
+    } catch(e) {}
+}
+setInterval(refreshOperationsOverview, 30000);
+
+// ===== 入场：流水线数字滚动 =====
+document.addEventListener('DOMContentLoaded', () => { try { countUp(); } catch(e){} });
+</script>
+{% endblock %}

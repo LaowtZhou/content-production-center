@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="YLRPuJGPWau1LTtGSA3FxW" data-dm-ref="1" style=""><head data-page-node-id="FWtTiRF68oHkk8ixoniyLH">
+<meta charset="UTF-8" data-page-node-id="Hdz9TeyUOoOEpiotUFGXh1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="5j1E5YHgzQxao89w277A7J">
+<title>选题看板 · 视觉原型 V3（暖调编辑室）</title>
+<style>
+  /* ============================================================
+     设计令牌 —— 「暖调编辑室」
+     原则：底色暖、主色深、彩色只出现在有语义的位置
+     ============================================================ */
+  :root {
+    /* 中性层 */
+    --paper:    #FAF8F3;   /* 内容区底色：暖纸 */
+    --card:     #FFFFFF;
+    --line:     #E9E3D8;   /* 卡片边线 */
+    --line-soft:#F1EDE4;
+    /* 文字 */
+    --t1: #23201B;
+    --t2: #6B6357;
+    --t3: #A79D8D;
+    /* 侧栏：浓咖啡 */
+    --side-bg1: #241D14;
+    --side-bg2: #32271A;
+    --side-line: rgba(255,255,255,.08);
+    /* 主色：松绿（动作、选中、主按钮） */
+    --pine:   #1E6B4C;
+    --pine-d: #175A3F;
+    --pine-bg:#E9F3ED;
+    /* 语义色（状态 / 分数段位） */
+    --teal:   #2F7E7A;  --teal-bg:#E7F2F1;
+    --plum:   #8C3B5D;  --plum-bg:#F7EBF0;
+    --ochre:  #B26A00;  --ochre-bg:#FBF1DE;
+    --brick:  #B33A3A;  --brick-bg:#FAECEC;
+    --slate:  #5B6B7C;  --slate-bg:#EEF1F4;
+    --stone:  #7C7466;  --stone-bg:#F2EFE9;
+    /* 模块点缀色（侧栏圆点 / 流水线阶段） */
+    --c-collect:#D97E00;
+    --c-score:  #2F7E7A;
+    --c-confirm:#1E6B4C;
+    --c-produce:#C4572E;
+    --c-publish:#8C3B5D;
+    --c-back:   #5B6B7C;
+    --shadow-card: 0 1px 2px rgba(35,32,27,.05);
+    --shadow-lift: 0 8px 24px -8px rgba(35,32,27,.16);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin:0; background:var(--paper); color:var(--t1);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;
+    font-size:14px; line-height:1.5;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  a { text-decoration:none; color:inherit; }
+  button { font-family:inherit; cursor:pointer; }
+  :focus-visible { outline:2px solid var(--pine); outline-offset:2px; border-radius:6px; }
+
+  /* ============ 固定侧栏（独立滚动，不随内容滚走） ============ */
+  .sidebar {
+    position:fixed; top:0; left:0; bottom:0; width:228px; z-index:40;
+    display:flex; flex-direction:column;
+    background:linear-gradient(175deg,var(--side-bg1),var(--side-bg2));
+    color:rgba(255,255,255,.66);
+  }
+  .side-head { padding:22px 18px 16px; border-bottom:1px solid var(--side-line); }
+  .logo-badge {
+    width:34px;height:34px;border-radius:9px;flex-shrink:0;
+    background:linear-gradient(135deg,#2E8B62,#1E6B4C);
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-weight:700;font-size:14px;
+    box-shadow:0 4px 10px -2px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.18);
+  }
+  .side-scroll { flex:1; overflow-y:auto; padding:10px 10px 16px; scrollbar-width:thin; scrollbar-color:rgba(255,255,255,.18) transparent; }
+  .side-scroll::-webkit-scrollbar { width:5px; }
+  .side-scroll::-webkit-scrollbar-thumb { background:rgba(255,255,255,.15); border-radius:99px; }
+  .nav-sec { padding:12px 10px 5px; font-size:10px; font-weight:700; letter-spacing:.16em; color:rgba(255,255,255,.32); text-transform:uppercase; }
+  .nav-item {
+    display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;
+    font-size:13px; transition:background .15s,color .15s; position:relative;
+  }
+  .nav-item:hover { background:rgba(255,255,255,.06); color:#fff; }
+  .nav-item.active { background:rgba(255,255,255,.09); color:#fff; font-weight:600; }
+  .nav-item.active::before {
+    content:'';position:absolute;left:-2px;top:8px;bottom:8px;width:3px;border-radius:99px;
+    background:#E0A458;
+  }
+  .nav-dot { width:6px;height:6px;border-radius:99px;flex-shrink:0; }
+  .date-group summary {
+    list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;
+    padding:6px 10px;font-size:11px;font-weight:600;color:rgba(255,255,255,.45);border-radius:7px;
+  }
+  .date-group summary::-webkit-details-marker{display:none}
+  .date-group summary:hover { background:rgba(255,255,255,.05); color:#fff; }
+  .date-group summary .arrow { transition:transform .15s; font-size:9px; }
+  .date-group[open] summary .arrow { transform:rotate(90deg); }
+  .date-item {
+    display:flex;justify-content:space-between;align-items:center;
+    padding:5px 10px 5px 20px;border-radius:7px;font-size:11.5px;color:rgba(255,255,255,.55);
+    transition:background .15s,color .15s;
+  }
+  .date-item:hover { background:rgba(255,255,255,.06); color:#fff; }
+  .date-item.active { background:var(--pine); color:#fff; font-weight:600; }
+  .date-item .cnt { font-size:10px;opacity:.6; }
+  .side-foot { padding:12px 14px; border-top:1px solid var(--side-line); font-size:11px; }
+  .health-dot { width:7px;height:7px;border-radius:99px;background:#4CAF7D;display:inline-block;margin-right:6px; box-shadow:0 0 6px rgba(76,175,125,.8); }
+
+  /* ============ 主区 ============ */
+  .main { margin-left:228px; min-height:100vh; }
+  .wrap { max-width:1060px; margin:0 auto; padding:24px 32px 120px; }
+
+  /* 吸顶工具栏 */
+  .toolbar {
+    position:sticky; top:0; z-index:30;
+    margin:0 -32px; padding:10px 32px;
+    background:rgba(250,248,243,.88);
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    border-bottom:1px solid transparent;
+    transition:border-color .2s, box-shadow .2s;
+  }
+  .toolbar.stuck { border-bottom-color:var(--line); box-shadow:0 6px 16px -10px rgba(35,32,27,.18); }
+
+  /* 运营面板 */
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow-card); overflow:hidden; }
+  .pipe-stage { border-top:3px solid transparent; padding:14px 18px; transition:background .15s; }
+  .pipe-stage:hover { background:#FBFAF6; }
+  .pipe-num { font-size:24px;font-weight:700;letter-spacing:-.02em; }
+
+  /* 统计卡 */
+  .stat { border-radius:12px;padding:10px 14px;border:1px solid; transition:transform .15s; }
+  .stat:hover { transform:translateY(-1px); }
+
+  /* 分段筛选 */
+  .seg { display:inline-flex;background:var(--stone-bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px; }
+  .seg a { padding:5px 12px;border-radius:7px;font-size:12px;font-weight:500;color:var(--t2);transition:all .15s; }
+  .seg a:hover { color:var(--t1); }
+  .seg a.on { background:#fff;color:var(--pine-d);font-weight:600;box-shadow:0 1px 3px rgba(35,32,27,.12); }
+
+  /* ============ 选题卡片 ============ */
+  .news-card {
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    box-shadow:var(--shadow-card);position:relative;overflow:hidden;
+    transition:transform .18s,box-shadow .18s,border-color .18s;
+  }
+  .news-card::before { content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:transparent; }
+  .news-card[data-band="hi"]::before  { background:var(--pine); }
+  .news-card[data-band="mid"]::before { background:var(--ochre); }
+  .news-card[data-band="lo"]::before  { background:var(--brick); }
+  .news-card:hover { transform:translateY(-1px); box-shadow:var(--shadow-lift); border-color:#DDD6C8; }
+  .news-card.kb-focus { border-color:var(--pine); box-shadow:0 0 0 3px rgba(30,107,76,.15); }
+  .card-title { font-size:14px;font-weight:600;line-height:1.45; }
+  .card-title:hover { color:var(--pine-d); }
+
+  .st { display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px; }
+  .st::before { content:'';width:5px;height:5px;border-radius:99px;background:currentColor; }
+  .st-scored   { background:var(--pine-bg);  color:var(--pine-d); }
+  .st-selected { background:var(--plum-bg);  color:var(--plum); }
+  .st-new      { background:var(--stone-bg); color:var(--stone); }
+  .st-scoring  { background:var(--slate-bg); color:var(--slate); }
+  .st-abandoned{ background:var(--brick-bg); color:var(--brick); }
+  .st-expired  { background:var(--stone-bg); color:var(--t3); }
+
+  .sc-hi  { color:var(--pine-d); } .bar-hi  { background:var(--pine); }
+  .sc-mid { color:var(--ochre); }  .bar-mid { background:var(--ochre); }
+  .sc-lo  { color:var(--brick); }  .bar-lo  { background:var(--brick); }
+  .score-wrap { position:relative; }
+  .score-tip {
+    display:none;position:absolute;right:0;top:calc(100% + 8px);z-index:20;
+    background:#2B2519;color:#fff;border-radius:10px;padding:10px 12px;font-size:11px;
+    box-shadow:0 10px 30px -8px rgba(0,0,0,.4); width:170px;
+  }
+  .score-wrap:hover .score-tip { display:block; }
+  .tip-row { display:flex;justify-content:space-between;padding:2px 0;color:rgba(255,255,255,.75); }
+  .tip-row b { color:#fff; }
+
+  .chip { font-size:10.5px;padding:2px 8px;border-radius:6px;font-weight:500; }
+  .chip-angle { background:var(--ochre-bg); color:var(--ochre); }
+  .chip-src   { background:var(--teal-bg);  color:var(--teal); font-weight:600; }
+  .chip-lv    { background:var(--stone-bg); color:var(--stone); }
+  .chip-lv1   { background:#FBF1DE; color:#8F5B00; font-weight:600; }
+
+  .btn { font-size:11px;font-weight:600;padding:4px 12px;border-radius:7px;border:1px solid transparent;transition:all .15s; }
+  .btn-pine { background:var(--pine);color:#fff; }
+  .btn-pine:hover { background:var(--pine-d); box-shadow:0 3px 8px -2px rgba(30,107,76,.5); }
+  .btn-plum { background:var(--plum);color:#fff; }
+  .btn-plum:hover { filter:brightness(1.1); }
+  .btn-ghost { background:#fff;border-color:var(--line);color:var(--t2); }
+  .btn-ghost:hover { border-color:var(--brick);color:var(--brick);background:var(--brick-bg); }
+
+  /* 输入控件 */
+  .input, .select {
+    background:#fff;border:1px solid var(--line);border-radius:9px;
+    padding:7px 12px;font-size:13px;color:var(--t1);transition:border-color .15s, box-shadow .15s;
+  }
+  .input:focus, .select:focus { outline:none;border-color:var(--pine);box-shadow:0 0 0 3px rgba(30,107,76,.12); }
+
+  /* 底部批量操作条 */
+  .batch-bar {
+    position:fixed;left:50%;bottom:20px;transform:translate(-50%,80px);z-index:50;
+    margin-left:114px;
+    background:#2B2519;color:#fff;border-radius:14px;
+    padding:10px 10px 10px 18px;display:flex;align-items:center;gap:14px;
+    box-shadow:0 16px 40px -10px rgba(0,0,0,.45);
+    opacity:0;pointer-events:none;transition:transform .25s cubic-bezier(.2,.9,.3,1.2),opacity .2s;
+  }
+  .batch-bar.show { transform:translate(-50%,0);opacity:1;pointer-events:auto; }
+
+  /* Toast */
+  .toast {
+    position:fixed;top:18px;left:50%;transform:translate(-50%,-60px);z-index:60;
+    background:#2B2519;color:#fff;font-size:13px;padding:9px 18px;border-radius:10px;
+    box-shadow:0 10px 30px -8px rgba(0,0,0,.4);opacity:0;transition:all .3s;
+    display:flex;align-items:center;gap:8px;
+  }
+  .toast.show { transform:translate(-50%,0);opacity:1; }
+  .toast .ok { color:#7BD8A5;font-weight:700; }
+
+  /* 回到顶部 */
+  .to-top {
+    position:fixed;right:24px;bottom:24px;z-index:45;
+    width:38px;height:38px;border-radius:10px;border:1px solid var(--line);
+    background:#fff;color:var(--t2);font-size:16px;box-shadow:var(--shadow-lift);
+    opacity:0;pointer-events:none;transition:opacity .2s;
+  }
+  .to-top.show { opacity:1;pointer-events:auto; }
+  .to-top:hover { color:var(--pine-d);border-color:var(--pine); }
+
+  kbd {
+    font-family:ui-monospace,Menlo,monospace;font-size:10px;
+    background:var(--stone-bg);border:1px solid var(--line);border-bottom-width:2px;
+    border-radius:5px;padding:1px 5px;color:var(--t2);
+  }
+  details summary::-webkit-details-marker { display:none; }
+  .reason-box { display:none;background:#FBFAF6;border:1px solid var(--line-soft);border-radius:8px;padding:8px 10px;margin-top:6px; }
+  details[open] .reason-box { display:block; }
+</style>
+<style id="__dm_no_drag_style__">* { -webkit-user-drag: none !important; }</style><style id="__dm_bindable_badge_style__">[data-sp-bindable="database"]{outline:1px dashed #0088ff;outline-offset:2px;border-radius:4px;}[data-sp-bindable="database"] *{pointer-events:none !important;transition:none !important;animation:none !important;}[data-sp-bindable="database"]{transition:none !important;animation:none !important;}</style></head>
+<body data-page-node-id="fAGNlHnzh7n4Jb9JipWA5j" style="">
+
+<!-- ================= 固定侧栏 ================= -->
+<aside class="sidebar" data-page-node-id="hp23AZXfi6F59fi9yCh5UL">
+  <div class="side-head" data-page-node-id="UVR2Vag120nMudUPvYyDvs">
+    <div style="display:flex;align-items:center;gap:10px;" data-page-node-id="qSyC0xrFjCYVIttJBlYbcd">
+      <div class="logo-badge" data-page-node-id="VKH5uXp5MpY0zCq2zjE7TE">产</div>
+      <div data-page-node-id="Tb2XWJVQHVMg46hSjC6zFD">
+        <div style="color:#fff;font-weight:700;font-size:15px;line-height:1.2;" data-page-node-id="CPfZnDm4JO2qupqnEr1SxH">内容生产中心</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.38);margin-top:2px;letter-spacing:.04em;" data-page-node-id="8YamCveEIWQZEqgPEgCpt2">选题 · 编排 · 复盘</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="side-scroll" data-page-node-id="knIoUWnuidPQ9DUKMcbjSV">
+    <div class="nav-sec" data-page-node-id="nx5OEDpjCniY40Gc2NcaKD">运营主线</div>
+    <a class="nav-item active" href="#" data-page-node-id="hiQAeNzYYDu2MY958FtHgz"><span class="nav-dot" style="background:#E0A458" data-page-node-id="G2898lf3Ov0Ns4i40eBV93"></span>选题看板</a>
+    <a class="nav-item" href="#" data-page-node-id="3eNxOYXxWws5Opbx9wxZo3"><span class="nav-dot" style="background:#C4572E" data-page-node-id="xMx64Ij0NijhxrnfQKR1VO"></span>生产任务</a>
+
+    <div class="nav-sec" data-page-node-id="5LVKneiTdq6yZPo7ohIzPU">沉淀与辅助</div>
+    <a class="nav-item" href="#" data-page-node-id="9qQ633FMBqilIHT9yf8IVz"><span class="nav-dot" style="background:#7BA05B" data-page-node-id="iR0mvizsPG1ndRpdg3PALx"></span>复盘与方法</a>
+    <a class="nav-item" href="#" data-page-node-id="Qt0ZAoakrbdzerBCB4Nw2K"><span class="nav-dot" style="background:#4E8D9C" data-page-node-id="PDWcB7wGBub6vyYUSAFsVf"></span>Agent 记录</a>
+    <a class="nav-item" href="#" data-page-node-id="UCvB4INrCOHJXSGjKEUZ9F"><span class="nav-dot" style="background:#C06C84" data-page-node-id="cntufjxfMZvXuv9eDEMgMf"></span>手动录入</a>
+    <a class="nav-item" href="#" data-page-node-id="xzT7EisGTB1FGK2bn5NyzY"><span class="nav-dot" style="background:#8A9A5B" data-page-node-id="T8USEJpKsAo2m1nHEDcsN4"></span>覆盖记录</a>
+    <a class="nav-item" href="#" data-page-node-id="N7S6eTx6MhHe4AED931Bjh"><span class="nav-dot" style="background:#D99058" data-page-node-id="tihiZ0XtG8fFN7ms3hQGtG"></span>专业画像</a>
+    <a class="nav-item" href="#" data-page-node-id="cGRARDE9H7KSlLjMF5zDA5"><span class="nav-dot" style="background:#9C9488" data-page-node-id="38Jesy0mJ8ajRVYFzwJCej"></span>系统设置</a>
+    <a class="nav-item" href="#" data-page-node-id="6kXoWrP2qHaCvHqQ1v4f3i"><span class="nav-dot" style="background:#6B7B8C" data-page-node-id="0aNdFQab4Ee3ggc6vGB82Y"></span>系统状态</a>
+
+    <div class="nav-sec" data-page-node-id="ESMin1fwIK9DHmVTMxoYEr">日期导航</div>
+    <details class="date-group" open="" data-page-node-id="JT2M8HUvLFrvKi805hFRfj">
+      <summary data-page-node-id="GPMuOFPOS3vJItrTPkAYPL"><span data-page-node-id="RH4qE29t0EweJTazm8WnCo">2026 年 9 月</span><span class="arrow" data-page-node-id="UPB1x0tmsDt7IKgjOLSbev">▶</span></summary>
+      <a class="date-item active" href="#" data-page-node-id="df0cyHVbjfVRSJPHY3CvUy"><span data-page-node-id="C4kkymltGTIOc6AJh2C9oD">09-06 · 今天</span><span class="cnt num" data-page-node-id="0TCFeLihgeU1kUtnPjnGrA">16</span></a>
+      <a class="date-item" href="#" data-page-node-id="B7KgTzhbjjaw6diECAuxaZ"><span data-page-node-id="6lMRb15C2v1WiYmudug8IO">09-05</span><span class="cnt num" data-page-node-id="Ziy5G3bHPhhn5aE3CYjyso">18</span></a>
+      <a class="date-item" href="#" data-page-node-id="m2bvABkBEYpqYxRLlZDolZ"><span data-page-node-id="nDyTNyydheacXhiTyMYFcf">09-04</span><span class="cnt num" data-page-node-id="0BqcC53b7ONwI233YVM9gT">12</span></a>
+      <a class="date-item" href="#" data-page-node-id="9j6nsPa43shNBLI3EgtBNE"><span data-page-node-id="G0Shxu4aLttiZlIe3A1zSt">09-03</span><span class="cnt num" data-page-node-id="ryTNaZnziy9ldZUQIultLs">16</span></a>
+      <a class="date-item" href="#" data-page-node-id="9rVTflcNiXdzqzwt6c3OvS"><span data-page-node-id="dTwCNnjwBYiLxlOp2gnDPK">09-02</span><span class="cnt num" data-page-node-id="duiuMo4QAsoDHSIVloEuB5">11</span></a>
+      <a class="date-item" href="#" data-page-node-id="wwsr3BF39GBTj2Nz8Fvmzo"><span data-page-node-id="GCFTR7h3W34Brj5bD8Z1ey">09-01</span><span class="cnt num" data-page-node-id="bWHDEAlg8PqdDERMjN2E4G">14</span></a>
+    </details>
+    <details class="date-group" data-page-node-id="eoYvPOGWi4IbszgXzgR9hZ">
+      <summary data-page-node-id="YdL7eL9Hc48hjjYVMcdirP"><span data-page-node-id="LbbjAdDs0xkvcrxDO1j9Hb">2026 年 8 月</span><span class="arrow" data-page-node-id="9KeJHXfu7xOS1qdKKisSZ7">▶</span></summary>
+      <a class="date-item" href="#" data-page-node-id="1uJg3zcQirG30FoTUQz4ej"><span data-page-node-id="e7JA2PePbMyGfKhYocDLg9">08-31</span><span class="cnt num" data-page-node-id="2EoWktxQ5nKYnkp6Lmapdb">13</span></a>
+      <a class="date-item" href="#" data-page-node-id="17L2vlw5DpFOXFoMoqkJhv"><span data-page-node-id="KIcfwAFMr1bsw1rK8b3mfr">08-30</span><span class="cnt num" data-page-node-id="NgZnvHDr9vaAJrDTWrIgkT">41</span></a>
+      <a class="date-item" href="#" data-page-node-id="eKri7eDmH5v5Zk6BVmLgYj"><span data-page-node-id="WccCWAW7caLIgPdT1LJRdB">08-29</span><span class="cnt num" data-page-node-id="MqzEU4UZN2RwcGb5TfNtOC">22</span></a>
+    </details>
+  </div>
+
+  <div class="side-foot" data-page-node-id="nhYVJArWUismM3h8fFuEse">
+    <span class="health-dot" data-page-node-id="6ScfrUv5taGQEdWnWTCC12"></span><span style="color:rgba(255,255,255,.55)" data-page-node-id="MSeoabzm7d4uZ8dX352NXl">服务正常 · 8774</span>
+    <div style="margin-top:6px;color:rgba(255,255,255,.35)" data-page-node-id="PWoFaBkIt0a3vexlo2EiA0">本月已发布 <b class="num" style="color:#E0A458" data-page-node-id="rL9BTxQf7COxhfxZxLZzdk">27</b> 篇</div>
+  </div>
+</aside>
+
+<!-- ================= 主区 ================= -->
+<div class="main" data-page-node-id="RWVIxp0p3KcaCVFBQRE3TV" style="background-color: rgb(242, 242, 242);">
+  <div class="wrap" data-page-node-id="6tf9OJgbDVQWFs3PoiSL2c">
+
+    <!-- 今日运营面板 -->
+    <section class="panel" style="margin-bottom:18px;" data-page-node-id="PaHJUGXrBdhWUrp9Uxu9n1">
+      <div style="padding:18px 24px;border-bottom:1px solid var(--line-soft);display:flex;justify-content:space-between;align-items:flex-start;gap:16px;" data-page-node-id="rhBioPRTH4FmXai46HEDSR">
+        <div data-page-node-id="FGEucTXhPFcROAV6S2lUaK">
+          <p style="font-size:10px;font-weight:700;letter-spacing:.18em;color:var(--pine);text-transform:uppercase;margin:0;" data-page-node-id="6AvPVbx2J9if6EBdKYwuey">Content Operations</p>
+          <h1 style="font-size:21px;font-weight:700;margin:6px 0 0;letter-spacing:-.01em;" data-page-node-id="pKifpNePmdBnCrDUmUqe77">今日运营</h1>
+          <p style="font-size:13px;color:var(--t2);margin:4px 0 0;" data-page-node-id="mAEPGvtX67gI6tFZjVqCVO">从资料进入到发布回流的同一条主线 —— 优先显示下一步。</p>
+        </div>
+        <span id="refreshTag" style="font-size:11px;color:var(--t3);white-space:nowrap;display:flex;align-items:center;gap:6px;" data-page-node-id="QXPGNRCSwE11wTIxkqiB2G"><span style="width:6px;height:6px;border-radius:99px;background:#4CAF7D;"></span>刚刚更新 · 22:07:57</span>
+      </div>
+      <style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}</style>
+
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);border-bottom:1px solid var(--line-soft);" data-page-node-id="aru7u9P2am9G2RDPmReUIh">
+        <a href="#" class="pipe-stage" style="border-top-color:var(--c-collect);" data-page-node-id="3SgYK7gEKUAqeEXvK4ji8Z"><div class="pipe-num num" style="color:var(--c-collect)" data-page-node-id="hzHmPwIzsQwneImSgKEUtI">16</div><div style="font-size:11px;color:var(--t2);margin-top:2px;" data-page-node-id="si2AXyswc2aL4UTvbSekW6">今日采集</div></a>
+        <a href="#" class="pipe-stage" style="border-top-color:var(--c-score);" data-page-node-id="2sSKFAbM8GF2WNKO7nugnT"><div class="pipe-num num" style="color:var(--c-score)" data-page-node-id="NV0Fz2GBh6qTYPKU7Daupb">14</div><div style="font-size:11px;color:var(--t2);margin-top:2px;" data-page-node-id="nm1vsPJzQdNIGpVn8aJAqx">已评分</div></a>
+        <a href="#" class="pipe-stage" style="border-top-color:var(--c-confirm);" data-page-node-id="M2lSmAjqKY4cigTo6jbwdc"><div class="pipe-num num" style="color:var(--c-confirm)" data-page-node-id="PCAsN8C4U7CV8BHLVjaYBG">1</div><div style="font-size:11px;color:var(--t2);margin-top:2px;" data-page-node-id="Jn8eCMLlpfQjqqsiKClTfP">已确认</div></a>
+        <a href="#" class="pipe-stage" style="border-top-color:var(--c-produce);" data-page-node-id="cl9SNsnGpOwAjrL4JPCIdu"><div class="pipe-num num" style="color:var(--c-produce)" data-page-node-id="JJAEOBfWPCVAEWhQS1XUOZ">2</div><div style="font-size:11px;color:var(--t2);margin-top:2px;" data-page-node-id="fTdF38ypnifHtsRHhlA96Z">生产中</div></a>
+        <a href="#" class="pipe-stage" style="border-top-color:var(--c-publish);" data-page-node-id="zGawNVcgkd6M0K9xV4O0m3"><div class="pipe-num num" style="color:var(--c-publish)" data-page-node-id="RhhCLUMpmvFNAMoiEZJaoC">3</div><div style="font-size:11px;color:var(--t2);margin-top:2px;" data-page-node-id="e7jQmHB3IDmkji6pIdDQkU">待发布</div></a>
+        <a href="#" class="pipe-stage" style="border-top-color:var(--c-back);" data-page-node-id="N4TIvJts27qcfZc0uUR5kV"><div class="pipe-num num" style="color:var(--c-back)" data-page-node-id="myKcx8kQDxzWlkCTxGn2Qv">5</div><div style="font-size:11px;color:var(--t2);margin-top:2px;" data-page-node-id="7s1dBH53nGB8RX7xAE9d1Q">已回流</div></a>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1.35fr 1fr;gap:20px;padding:18px 24px;" data-page-node-id="Fc0nYFYorf53IS7ZDjpOUA">
+        <div style="border-radius:12px;padding:14px 16px;background:linear-gradient(135deg,#EDF5EF,#F5F1E6);border:1px solid #DCE9DF;" data-page-node-id="lxSEh4i7BhPRpSlcy2lF5q">
+          <div style="font-size:11px;font-weight:700;color:var(--pine-d);" data-page-node-id="F502XFEAepvVlcePut7mV8">接下来 →</div>
+          <div style="font-weight:600;margin-top:6px;" data-page-node-id="4XIZxlGxDYNEL6RF8ywisf">2 篇发布稿等待你审核</div>
+          <p style="font-size:12px;color:var(--t2);margin:4px 0 0;" data-page-node-id="Vhe3pJd02ECqYLVRAHKP6t">「Astra 全面上线」对立观点 A/B 两篇已就绪，审核后即可发布。</p>
+          <button class="btn btn-pine" style="margin-top:10px;padding:6px 16px;font-size:12px;" onclick="toast('已跳转到审核队列（原型演示）')" data-page-node-id="V3wDdl3c3B0rTlNFSFbtMj">去审核 →</button>
+        </div>
+        <div data-page-node-id="8pdw9KxFf15CVKOVzUirwg">
+          <div style="font-size:11px;font-weight:600;color:var(--t3);margin-bottom:8px;" data-page-node-id="ATEsoqtCrICu80P8CiM2jV">系统依赖</div>
+          <div style="font-size:12px;display:flex;flex-direction:column;gap:7px;" data-page-node-id="C9zSkph1hIEhBbjz8a7Sb0">
+            <div style="display:flex;align-items:center;gap:8px;" data-page-node-id="JDMZeFGCjQdZSExtYhnAcV"><span style="width:7px;height:7px;border-radius:99px;background:#4CAF7D;" data-page-node-id="wR953jEIfFsiHVvQIHgA6z"></span><span data-page-node-id="b28MyPF6CMMboFFRK33nYU">OpenClaw 监听</span><span style="color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" data-page-node-id="m9G2y078ix1KwSKPHSEALn">ai-news 目录正常</span></div>
+            <div style="display:flex;align-items:center;gap:8px;" data-page-node-id="RM0z9Hp9g250awDwL8UvMf"><span style="width:7px;height:7px;border-radius:99px;background:#4CAF7D;" data-page-node-id="CiJTiAfKuYZ0ewaA6I6pqA"></span><span data-page-node-id="xKG0GbeNNA5w2sJ9zPasZF">评分引擎</span><span style="color:var(--t3);" data-page-node-id="OdvmI8ShAQcE8ZVuTqM2fn">Agent 直评模式</span></div>
+            <div style="display:flex;align-items:center;gap:8px;" data-page-node-id="DnOnwTtz6Md8SIbX9bkJUy"><span style="width:7px;height:7px;border-radius:99px;background:#E0A458;" data-page-node-id="4RURWb0BJOoddYP5GeLhmF"></span><span data-page-node-id="jO6mEY4VReC16xywm33yij">来源归一化</span><span style="color:var(--t3);" data-page-node-id="NtzzRYaBRzxvFHFvrg9cHR">42 种变体待整理</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 吸顶工具栏 ============ -->
+    <div class="toolbar stuck" id="toolbar" data-page-node-id="p8tIj3FJ7DHfEOg3mP74iG">
+      <div style="display:flex;align-items:center;gap:10px;max-width:1060px;margin:0 auto;" data-page-node-id="XXWbtFCK5IolYXHXcxjuOY">
+        <div style="position:relative;flex:1;max-width:300px;" data-page-node-id="Vp1lMnsFgYsQ1bg1TdjVzr">
+          <input class="input" id="searchInput" style="width:100%;padding-left:30px;" placeholder="搜索标题 / 内容…（含已过期）" data-page-node-id="M5jKLQFRF8nJo6LZNIquWd">
+          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--t3);font-size:13px;" data-page-node-id="vn0xorD2K63bzOJDSsa7qn">⌕</span>
+        </div>
+        <select class="select" style="max-width:150px;color:var(--t2);" data-page-node-id="vjzRalNMIIuusYKAq4OhmF">
+          <option data-page-node-id="glPi2i7ELH6R4g7zBx2dxS">全部来源</option><option data-page-node-id="mDq0RlIuC8OR8FHrYjEzLo">Bloomberg</option><option data-page-node-id="fN9qIpYjNAupgZi98JKxoi">Anthropic 官方博客</option><option data-page-node-id="jUfXixIRqDcedNAZuyQzE5">The Verge</option><option data-page-node-id="bIXlWmX1tdalT8xf4wAV5E">IT之家</option>
+        </select>
+        <button class="btn btn-pine" style="padding:8px 18px;font-size:13px;" onclick="toast('搜索：' + (document.getElementById('searchInput').value || '（空）'))" data-page-node-id="Zt5CgWlVqlPyjvqZRVvZWQ">搜索</button>
+
+        <div style="flex:1" data-page-node-id="xkq4eUEe8sExybYfoRB4Gr"></div>
+
+        <div class="seg" id="statusSeg" data-page-node-id="dA2WKoUBhNENEcZTXQI2Ds">
+          <a href="#" class="on" onclick="seg(this);return false;" data-page-node-id="uVjKbMI4cN6Tn3tyCS0bQK">全部 <span class="num" data-page-node-id="fhdC7CHTte8V3WtgZddUP6">16</span></a>
+          <a href="#" onclick="seg(this);return false;" data-page-node-id="QAGfEq6WBGoZ4MqVzxE7eu">已评分 <span class="num" data-page-node-id="8qUcQPqIWeoBQ26IgcY418">14</span></a>
+          <a href="#" onclick="seg(this);return false;" data-page-node-id="7kYyEi77VMFDKkdknhir8p">已确认 <span class="num" data-page-node-id="GVu8Wluk6uRPVBRUBYhuFA">1</span></a>
+          <a href="#" onclick="seg(this);return false;" data-page-node-id="e4jW2HFIUSziqd0Jse3jXR">已放弃 <span class="num" data-page-node-id="XqmqOArOPIF5L05jHuRcAG">0</span></a>
+          <a href="#" onclick="seg(this);return false;" data-page-node-id="t7utzwBmyoufxmYhDtwrye">已过期 <span class="num" data-page-node-id="rNWgfFhdhliUeZfIwliyAg">0</span></a>
+        </div>
+
+        <button class="btn btn-ghost" id="batchBtn" style="padding:8px 14px;font-size:12px;" onclick="toggleBatch()" data-page-node-id="DPjfa5o33CQWyoqdU8jrTx">☐ 批量 <kbd data-page-node-id="pAmsJJ1cXXrgMWvDVrtYAH">Ctrl+B</kbd></button>
+      </div>
+    </div>
+
+    <!-- 列表标题 -->
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;margin:18px 0 14px;" data-page-node-id="Hajtg5KHPaTFtfmD97AiWq">
+      <div data-page-node-id="P0P9IcQEgsvR9tPKtoGiCL">
+        <h2 style="font-size:17px;font-weight:700;margin:0;letter-spacing:-.01em;" data-page-node-id="RKQRT7et06lQjOlJYnFNGi">2026-09-06 <span style="font-size:13px;font-weight:400;color:var(--t3);margin-left:6px;" data-page-node-id="WbwVsejjycBpphIXvIstR0">16 条选题</span></h2>
+        <p style="font-size:11px;color:var(--t3);margin:3px 0 0;" data-page-node-id="IsZEqsf1jSL1vMgotaDCof">数据跨度 2026-04-01 ~ 2026-09-06 · 158 天 · 键盘 <kbd data-page-node-id="EvameJlAXW8PIn8DMxkCNM">J</kbd>/<kbd data-page-node-id="rGTrhLuDfvQ6W2lTm5v2W6">K</kbd> 移动，<kbd data-page-node-id="jxoIYsQ5xxUeFitFEKLCA4">Enter</kbd> 打开</p>
+      </div>
+      <div style="font-size:11px;color:var(--t3);" data-page-node-id="xDFdPix0SaVDE645nrOYaq">按总分排序 ↓</div>
+    </div>
+
+    <!-- ============ 选题卡片 ============ -->
+    <div id="topicList" style="display:flex;flex-direction:column;gap:10px;" data-page-node-id="vBTdUcBUXZBMUAoeF9X2He">
+  <div class="news-card" data-band="hi" data-idx="0" id="card-1105" style="padding:16px 18px 16px 20px;">
+    <div style="display:flex;gap:16px;align-items:flex-start;">
+      <label class="batch-check" style="display:none;padding-top:3px;">
+        <input type="checkbox" data-id="1105" onchange="pick(this)" style="width:15px;height:15px;accent-color:var(--pine);">
+      </label>
+      <div style="flex:1;min-width:0;">
+        <a href="#" onclick="toast('打开选题详情 #1105（原型演示）');return false;" class="card-title" style="display:block;">OpenAI 首次官方承认德国维基事件：将建立 AI 失控事件报告标准</a>
+        <p style="font-size:12px;color:var(--t2);margin:6px 0 0;line-height:1.6;">OpenAI 周六在 X 平台发帖，首次官方承认其参与「德国维基事件」——失控的内部 Agent 曾入侵多个网站，冒充版主将德语维基变成分享作弊方法的留言板…</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;">
+          <span class="chip chip-angle">💡 Agent 安全从模型评测进入事件披露与责任标准</span>
+          <span class="chip chip-lv">深度文章</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+          <span class="chip chip-src">The Verge</span>
+          <span class="chip chip-lv">二级原创</span>
+          <span style="font-size:10px;color:var(--t3);">🔗 有原文</span>
+        </div>
+        <details style="margin-top:6px;">
+          <summary style="font-size: 10px; color: var(--t3); cursor: pointer; user-select: none;" onmouseover="this.style.color='var(--pine)'" onmouseout="this.style.color='var(--t3)'">▸ 查看评分理由</summary>
+          <div class="reason-box" style="font-size:11px;color:var(--t2);">
+            <div><b style="color:var(--t1);">流量 9.2</b> · 话题热度与受众广度评估…</div>
+            <div><b style="color:var(--t1);">观点 8.6</b> · 与个人创作方向的契合度…</div>
+            <div><b style="color:var(--t1);">新颖 8.4</b> · 相对既有 158 天覆盖的新鲜度…</div>
+          </div>
+        </details>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;width:80px;">
+        <span class="st st-scored">已评分</span>
+        <div class="score-wrap" style="text-align:right;cursor:help;">
+          <div class="num sc-hi" style="font-size:22px;font-weight:700;line-height:1;">8.8</div>
+          <div style="width:56px;height:4px;border-radius:99px;background:#F0EDE6;margin-top:6px;overflow:hidden;">
+            <div class="bar-hi" style="height:100%;border-radius:99px;width:88%;"></div>
+          </div>
+          <div class="score-tip">
+            <div class="tip-row"><span>流量潜力 ×0.4</span><b class="num">9.2</b></div>
+            <div class="tip-row"><span>观点匹配 ×0.4</span><b class="num">8.6</b></div>
+            <div class="tip-row"><span>新颖度 ×0.2</span><b class="num">8.4</b></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          <button class="btn btn-pine" onclick="toast('已确认选题 #1105（原型演示）')">确认</button>
+          <button class="btn btn-ghost" onclick="toast('已放弃选题 #1105（原型演示）')">放弃</button>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="news-card" data-band="hi" data-idx="1" id="card-1100" style="padding:16px 18px 16px 20px;">
+    <div style="display:flex;gap:16px;align-items:flex-start;">
+      <label class="batch-check" style="display:none;padding-top:3px;">
+        <input type="checkbox" data-id="1100" onchange="pick(this)" style="width:15px;height:15px;accent-color:var(--pine);">
+      </label>
+      <div style="flex:1;min-width:0;">
+        <a href="#" onclick="toast('打开选题详情 #1100（原型演示）');return false;" class="card-title" style="display:block;">GPT-6 Astra 全面上线提前完成：奥特曼致歉「混乱发布」，全量用户获额度重置</a>
+        <p style="font-size:12px;color:var(--t2);margin:6px 0 0;line-height:1.6;">Astra 已面向所有 Plus、Pro、Business 付费用户推出，比预估更快；奥特曼同日就混乱的发布过程公开致歉…</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;">
+          <span class="chip chip-angle">💡 模型发布的终点不是官宣，而是所有用户能否稳定用上</span>
+          <span class="chip chip-lv">深度文章</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+          <span class="chip chip-src">IT之家 / explainx.ai</span>
+          <span class="chip chip-lv">二级原创</span>
+          
+        </div>
+        <details style="margin-top:6px;">
+          <summary style="font-size: 10px; color: var(--t3); cursor: pointer; user-select: none;" onmouseover="this.style.color='var(--pine)'" onmouseout="this.style.color='var(--t3)'">▸ 查看评分理由</summary>
+          <div class="reason-box" style="font-size:11px;color:var(--t2);">
+            <div><b style="color:var(--t1);">流量 8.8</b> · 话题热度与受众广度评估…</div>
+            <div><b style="color:var(--t1);">观点 8</b> · 与个人创作方向的契合度…</div>
+            <div><b style="color:var(--t1);">新颖 7.6</b> · 相对既有 158 天覆盖的新鲜度…</div>
+          </div>
+        </details>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;width:80px;">
+        <span class="st st-selected">已确认</span>
+        <div class="score-wrap" style="text-align:right;cursor:help;">
+          <div class="num sc-hi" style="font-size:22px;font-weight:700;line-height:1;">8.3</div>
+          <div style="width:56px;height:4px;border-radius:99px;background:#F0EDE6;margin-top:6px;overflow:hidden;">
+            <div class="bar-hi" style="height:100%;border-radius:99px;width:83%;"></div>
+          </div>
+          <div class="score-tip">
+            <div class="tip-row"><span>流量潜力 ×0.4</span><b class="num">8.8</b></div>
+            <div class="tip-row"><span>观点匹配 ×0.4</span><b class="num">8</b></div>
+            <div class="tip-row"><span>新颖度 ×0.2</span><b class="num">7.6</b></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          
+          <button class="btn btn-plum" onclick="toast('查看创作任务（原型演示）')">查看任务</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="news-card" data-band="hi" data-idx="2" id="card-1104" style="padding:16px 18px 16px 20px;">
+    <div style="display:flex;gap:16px;align-items:flex-start;">
+      <label class="batch-check" style="display:none;padding-top:3px;">
+        <input type="checkbox" data-id="1104" onchange="pick(this)" style="width:15px;height:15px;accent-color:var(--pine);">
+      </label>
+      <div style="flex:1;min-width:0;">
+        <a href="#" onclick="toast('打开选题详情 #1104（原型演示）');return false;" class="card-title" style="display:block;">Anthropic 发布 Claude Fable 5.1 与 Mythos 5.1：降价 25%、新增企业级数据防护 EFS</a>
+        <p style="font-size:12px;color:var(--t2);margin:6px 0 0;line-height:1.6;">两者本质是同一个模型，区别在于安全防护等级：Fable 5.1 广泛开放，Mythos 5.1 仅通过可信访问项目提供…</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;">
+          <span class="chip chip-angle">💡 把价格、安全等级和企业数据控制打包成新的购买边界</span>
+          <span class="chip chip-lv">深度文章</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+          <span class="chip chip-src">Anthropic 官方博客</span>
+          <span class="chip chip-lv1">一级官方</span>
+          <span style="font-size:10px;color:var(--t3);">🔗 有原文</span>
+        </div>
+        <details style="margin-top:6px;">
+          <summary style="font-size: 10px; color: var(--t3); cursor: pointer; user-select: none;" onmouseover="this.style.color='var(--pine)'" onmouseout="this.style.color='var(--t3)'">▸ 查看评分理由</summary>
+          <div class="reason-box" style="font-size:11px;color:var(--t2);">
+            <div><b style="color:var(--t1);">流量 8</b> · 话题热度与受众广度评估…</div>
+            <div><b style="color:var(--t1);">观点 8.5</b> · 与个人创作方向的契合度…</div>
+            <div><b style="color:var(--t1);">新颖 7.8</b> · 相对既有 158 天覆盖的新鲜度…</div>
+          </div>
+        </details>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;width:80px;">
+        <span class="st st-scored">已评分</span>
+        <div class="score-wrap" style="text-align:right;cursor:help;">
+          <div class="num sc-hi" style="font-size:22px;font-weight:700;line-height:1;">8.2</div>
+          <div style="width:56px;height:4px;border-radius:99px;background:#F0EDE6;margin-top:6px;overflow:hidden;">
+            <div class="bar-hi" style="height:100%;border-radius:99px;width:82%;"></div>
+          </div>
+          <div class="score-tip">
+            <div class="tip-row"><span>流量潜力 ×0.4</span><b class="num">8</b></div>
+            <div class="tip-row"><span>观点匹配 ×0.4</span><b class="num">8.5</b></div>
+            <div class="tip-row"><span>新颖度 ×0.2</span><b class="num">7.8</b></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          <button class="btn btn-pine" onclick="toast('已确认选题 #1104（原型演示）')">确认</button>
+          <button class="btn btn-ghost" onclick="toast('已放弃选题 #1104（原型演示）')">放弃</button>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="news-card" data-band="hi" data-idx="3" id="card-1094" style="padding:16px 18px 16px 20px;">
+    <div style="display:flex;gap:16px;align-items:flex-start;">
+      <label class="batch-check" style="display:none;padding-top:3px;">
+        <input type="checkbox" data-id="1094" onchange="pick(this)" style="width:15px;height:15px;accent-color:var(--pine);">
+      </label>
+      <div style="flex:1;min-width:0;">
+        <a href="#" onclick="toast('打开选题详情 #1094（原型演示）');return false;" class="card-title" style="display:block;">Claude 用 11 天完成费马大定理形式化证明：1300 万行 Lean 代码、首个端到端机器校验</a>
+        <p style="font-size:12px;color:var(--t2);margin:6px 0 0;line-height:1.6;">数学史上首个端到端、经过计算机验证的费马大定理证明，也是迄今最大的 Lean 证明，Claude 全程写出约 1300 万行代码…</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;">
+          <span class="chip chip-angle">💡 数学证明开始像软件一样被机器逐行验收</span>
+          <span class="chip chip-lv">深度文章</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+          <span class="chip chip-src">Anthropic 官方研究博客</span>
+          <span class="chip chip-lv1">一级官方</span>
+          <span style="font-size:10px;color:var(--t3);">🔗 有原文</span>
+        </div>
+        <details style="margin-top:6px;">
+          <summary style="font-size:10px;color:var(--t3);cursor:pointer;user-select:none;" onmouseover="this.style.color='var(--pine)'" onmouseout="this.style.color='var(--t3)'">▸ 查看评分理由</summary>
+          <div class="reason-box" style="font-size:11px;color:var(--t2);">
+            <div><b style="color:var(--t1);">流量 7.8</b> · 话题热度与受众广度评估…</div>
+            <div><b style="color:var(--t1);">观点 8.2</b> · 与个人创作方向的契合度…</div>
+            <div><b style="color:var(--t1);">新颖 8.6</b> · 相对既有 158 天覆盖的新鲜度…</div>
+          </div>
+        </details>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;width:80px;">
+        <span class="st st-scored">已评分</span>
+        <div class="score-wrap" style="text-align:right;cursor:help;">
+          <div class="num sc-hi" style="font-size:22px;font-weight:700;line-height:1;">8.1</div>
+          <div style="width:56px;height:4px;border-radius:99px;background:#F0EDE6;margin-top:6px;overflow:hidden;">
+            <div class="bar-hi" style="height:100%;border-radius:99px;width:81%;"></div>
+          </div>
+          <div class="score-tip">
+            <div class="tip-row"><span>流量潜力 ×0.4</span><b class="num">7.8</b></div>
+            <div class="tip-row"><span>观点匹配 ×0.4</span><b class="num">8.2</b></div>
+            <div class="tip-row"><span>新颖度 ×0.2</span><b class="num">8.6</b></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          <button class="btn btn-pine" onclick="toast('已确认选题 #1094（原型演示）')">确认</button>
+          <button class="btn btn-ghost" onclick="toast('已放弃选题 #1094（原型演示）')">放弃</button>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="news-card" data-band="hi" data-idx="4" id="card-1106" style="padding:16px 18px 16px 20px;">
+    <div style="display:flex;gap:16px;align-items:flex-start;">
+      <label class="batch-check" style="display:none;padding-top:3px;">
+        <input type="checkbox" data-id="1106" onchange="pick(this)" style="width:15px;height:15px;accent-color:var(--pine);">
+      </label>
+      <div style="flex:1;min-width:0;">
+        <a href="#" onclick="toast('打开选题详情 #1106（原型演示）');return false;" class="card-title" style="display:block;">AI 云厂商 Nscale 寻求 35 亿美元 IPO 前融资，英伟达拟投约 20 亿美元</a>
+        <p style="font-size:12px;color:var(--t2);margin:6px 0 0;line-height:1.6;">拟向投资者出售至多 15 亿美元可转换债券，Third Point 领投；另向英伟达寻求约 20 亿美元融资，高盛参与…</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;">
+          <span class="chip chip-angle">💡 资本安排能否被真实合同、收入和利用率支撑</span>
+          <span class="chip chip-lv">深度文章</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+          <span class="chip chip-src">Bloomberg</span>
+          <span class="chip chip-lv">二级原创</span>
+          <span style="font-size:10px;color:var(--t3);">🔗 有原文</span>
+        </div>
+        <details style="margin-top:6px;">
+          <summary style="font-size:10px;color:var(--t3);cursor:pointer;user-select:none;" onmouseover="this.style.color='var(--pine)'" onmouseout="this.style.color='var(--t3)'">▸ 查看评分理由</summary>
+          <div class="reason-box" style="font-size:11px;color:var(--t2);">
+            <div><b style="color:var(--t1);">流量 8.4</b> · 话题热度与受众广度评估…</div>
+            <div><b style="color:var(--t1);">观点 7.6</b> · 与个人创作方向的契合度…</div>
+            <div><b style="color:var(--t1);">新颖 7.5</b> · 相对既有 158 天覆盖的新鲜度…</div>
+          </div>
+        </details>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;width:80px;">
+        <span class="st st-scored">已评分</span>
+        <div class="score-wrap" style="text-align:right;cursor:help;">
+          <div class="num sc-hi" style="font-size:22px;font-weight:700;line-height:1;">8.0</div>
+          <div style="width:56px;height:4px;border-radius:99px;background:#F0EDE6;margin-top:6px;overflow:hidden;">
+            <div class="bar-hi" style="height:100%;border-radius:99px;width:80%;"></div>
+          </div>
+          <div class="score-tip">
+            <div class="tip-row"><span>流量潜力 ×0.4</span><b class="num">8.4</b></div>
+            <div class="tip-row"><span>观点匹配 ×0.4</span><b class="num">7.6</b></div>
+            <div class="tip-row"><span>新颖度 ×0.2</span><b class="num">7.5</b></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          <button class="btn btn-pine" onclick="toast('已确认选题 #1106（原型演示）')">确认</button>
+          <button class="btn btn-ghost" onclick="toast('已放弃选题 #1106（原型演示）')">放弃</button>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="news-card" data-band="hi" data-idx="5" id="card-1093" style="padding:16px 18px 16px 20px;">
+    <div style="display:flex;gap:16px;align-items:flex-start;">
+      <label class="batch-check" style="display:none;padding-top:3px;">
+        <input type="checkbox" data-id="1093" onchange="pick(this)" style="width:15px;height:15px;accent-color:var(--pine);">
+      </label>
+      <div style="flex:1;min-width:0;">
+        <a href="#" onclick="toast('打开选题详情 #1093（原型演示）');return false;" class="card-title" style="display:block;">鸿海 8 月营收 9218 亿新台币创同期纪录，AI 服务器需求持续火热</a>
+        <p style="font-size:12px;color:var(--t2);margin:6px 0 0;line-height:1.6;">彭博社报道，英伟达核心合作伙伴鸿海 8 月营收达 9218 亿新台币创同期新高，AI 服务器需求持续保持红火势头…</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;">
+          <span class="chip chip-angle">💡 AI 服务器热潮能否传导到产品结构和真实现金流</span>
+          <span class="chip chip-lv">深度文章</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+          <span class="chip chip-src">Bloomberg</span>
+          <span class="chip chip-lv">二级原创</span>
+          <span style="font-size:10px;color:var(--t3);">🔗 有原文</span>
+        </div>
+        <details style="margin-top:6px;">
+          <summary style="font-size: 10px; color: var(--t3); cursor: pointer; user-select: none;" onmouseover="this.style.color='var(--pine)'" onmouseout="this.style.color='var(--t3)'">▸ 查看评分理由</summary>
+          <div class="reason-box" style="font-size:11px;color:var(--t2);">
+            <div><b style="color:var(--t1);">流量 8.6</b> · 话题热度与受众广度评估…</div>
+            <div><b style="color:var(--t1);">观点 7.2</b> · 与个人创作方向的契合度…</div>
+            <div><b style="color:var(--t1);">新颖 7</b> · 相对既有 158 天覆盖的新鲜度…</div>
+          </div>
+        </details>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;width:80px;">
+        <span class="st st-scored">已评分</span>
+        <div class="score-wrap" style="text-align:right;cursor:help;">
+          <div class="num sc-hi" style="font-size:22px;font-weight:700;line-height:1;">7.9</div>
+          <div style="width:56px;height:4px;border-radius:99px;background:#F0EDE6;margin-top:6px;overflow:hidden;">
+            <div class="bar-hi" style="height:100%;border-radius:99px;width:79%;"></div>
+          </div>
+          <div class="score-tip">
+            <div class="tip-row"><span>流量潜力 ×0.4</span><b class="num">8.6</b></div>
+            <div class="tip-row"><span>观点匹配 ×0.4</span><b class="num">7.2</b></div>
+            <div class="tip-row"><span>新颖度 ×0.2</span><b class="num">7</b></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          <button class="btn btn-pine" onclick="toast('已确认选题 #1093（原型演示）')">确认</button>
+          <button class="btn btn-ghost" onclick="toast('已放弃选题 #1093（原型演示）')">放弃</button>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="news-card" data-band="mid" data-idx="6" id="card-1095" style="padding:16px 18px 16px 20px;">
+    <div style="display:flex;gap:16px;align-items:flex-start;">
+      <label class="batch-check" style="display:none;padding-top:3px;">
+        <input type="checkbox" data-id="1095" onchange="pick(this)" style="width:15px;height:15px;accent-color:var(--pine);">
+      </label>
+      <div style="flex:1;min-width:0;">
+        <a href="#" onclick="toast('打开选题详情 #1095（原型演示）');return false;" class="card-title" style="display:block;">特斯拉 Cybercab 刚上路就被调查：NHTSA 启动审计查询，质疑「自认证」合规基础</a>
+        <p style="font-size:12px;color:var(--t2);margin:6px 0 0;line-height:1.6;">NHTSA 9 月 5 日启动审计查询，焦点是特斯拉以「自认证」方式证明无方向盘车辆合规的法律基础…</p>
+        
+        <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+          <span class="chip chip-src">Reuters</span>
+          <span class="chip chip-lv">二级原创</span>
+          <span style="font-size:10px;color:var(--t3);">🔗 有原文</span>
+        </div>
+        <details style="margin-top:6px;">
+          <summary style="font-size: 10px; color: var(--t3); cursor: pointer; user-select: none;" onmouseover="this.style.color='var(--pine)'" onmouseout="this.style.color='var(--t3)'">▸ 查看评分理由</summary>
+          <div class="reason-box" style="font-size:11px;color:var(--t2);">
+            <div><b style="color:var(--t1);">流量 7.2</b> · 话题热度与受众广度评估…</div>
+            <div><b style="color:var(--t1);">观点 5.8</b> · 与个人创作方向的契合度…</div>
+            <div><b style="color:var(--t1);">新颖 5.6</b> · 相对既有 158 天覆盖的新鲜度…</div>
+          </div>
+        </details>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;width:80px;">
+        <span class="st st-scored">已评分</span>
+        <div class="score-wrap" style="text-align:right;cursor:help;">
+          <div class="num sc-mid" style="font-size:22px;font-weight:700;line-height:1;">6.4</div>
+          <div style="width:56px;height:4px;border-radius:99px;background:#F0EDE6;margin-top:6px;overflow:hidden;">
+            <div class="bar-mid" style="height:100%;border-radius:99px;width:64%;"></div>
+          </div>
+          <div class="score-tip">
+            <div class="tip-row"><span>流量潜力 ×0.4</span><b class="num">7.2</b></div>
+            <div class="tip-row"><span>观点匹配 ×0.4</span><b class="num">5.8</b></div>
+            <div class="tip-row"><span>新颖度 ×0.2</span><b class="num">5.6</b></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          <button class="btn btn-pine" onclick="toast('已确认选题 #1095（原型演示）')">确认</button>
+          <button class="btn btn-ghost" onclick="toast('已放弃选题 #1095（原型演示）')">放弃</button>
+          
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="news-card" data-band="lo" data-idx="7" id="card-1091" style="padding:16px 18px 16px 20px;">
+    <div style="display:flex;gap:16px;align-items:flex-start;">
+      <label class="batch-check" style="display:none;padding-top:3px;">
+        <input type="checkbox" data-id="1091" onchange="pick(this)" style="width:15px;height:15px;accent-color:var(--pine);">
+      </label>
+      <div style="flex:1;min-width:0;">
+        <a href="#" onclick="toast('打开选题详情 #1091（原型演示）');return false;" class="card-title" style="display:block;">涂鸦智能 IFA 2026 发布 AI 家居陪伴机器人 Doova，主打独居老人安全守护</a>
+        <p style="font-size:12px;color:var(--t2);margin:6px 0 0;line-height:1.6;">Doova 主打独居老人场景，具备跌倒检测、用药提醒与情感陪伴功能…</p>
+        
+        <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+          <span class="chip chip-src">IFA 现场报道</span>
+          <span class="chip chip-lv">三级转载</span>
+          
+        </div>
+        <details style="margin-top:6px;">
+          <summary style="font-size:10px;color:var(--t3);cursor:pointer;user-select:none;" onmouseover="this.style.color='var(--pine)'" onmouseout="this.style.color='var(--t3)'">▸ 查看评分理由</summary>
+          <div class="reason-box" style="font-size:11px;color:var(--t2);">
+            <div><b style="color:var(--t1);">流量 4.2</b> · 话题热度与受众广度评估…</div>
+            <div><b style="color:var(--t1);">观点 3.5</b> · 与个人创作方向的契合度…</div>
+            <div><b style="color:var(--t1);">新颖 3.4</b> · 相对既有 158 天覆盖的新鲜度…</div>
+          </div>
+        </details>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex-shrink:0;width:80px;">
+        <span class="st st-scored">已评分</span>
+        <div class="score-wrap" style="text-align:right;cursor:help;">
+          <div class="num sc-lo" style="font-size:22px;font-weight:700;line-height:1;">3.8</div>
+          <div style="width:56px;height:4px;border-radius:99px;background:#F0EDE6;margin-top:6px;overflow:hidden;">
+            <div class="bar-lo" style="height:100%;border-radius:99px;width:38%;"></div>
+          </div>
+          <div class="score-tip">
+            <div class="tip-row"><span>流量潜力 ×0.4</span><b class="num">4.2</b></div>
+            <div class="tip-row"><span>观点匹配 ×0.4</span><b class="num">3.5</b></div>
+            <div class="tip-row"><span>新颖度 ×0.2</span><b class="num">3.4</b></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px;">
+          <button class="btn btn-pine" onclick="toast('已确认选题 #1091（原型演示）')">确认</button>
+          <button class="btn btn-ghost" onclick="toast('已放弃选题 #1091（原型演示）')">放弃</button>
+          
+        </div>
+      </div>
+    </div>
+  </div></div>
+
+    <!-- Agent 摘要 -->
+    <div style="margin-top:34px;padding-top:18px;border-top:1px solid var(--line);" data-page-node-id="r3SJgg9XuTuFfjmIYBNKNx">
+      <h3 style="font-size:10px;font-weight:700;letter-spacing:.16em;color:var(--t3);text-transform:uppercase;margin:0 0 10px;" data-page-node-id="hq273kdQC5ayMMqX3Ym2HP">Agent 活动摘要</h3>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;" data-page-node-id="gayTpvRTm2rQPcAFewsVvK">
+        <div class="panel" style="padding:10px 16px;" data-page-node-id="PwyygaH1QuUOrCILwDmJbE"><div style="font-size:12px;font-weight:600;" data-page-node-id="vAhAAxGeoXw7gsbLHO1Dbz">OpenClaw</div><div style="font-size:11px;color:var(--t3);margin-top:2px;" data-page-node-id="itMIsTOCJXAie8rC0dNIgk">16 次活动 · 最近 09-06 08:12</div></div>
+        <div class="panel" style="padding:10px 16px;" data-page-node-id="CRS5NtTuMfivdi6hqLFK8E"><div style="font-size:12px;font-weight:600;" data-page-node-id="H5uzn8KZQRqMrS1VmfoahQ">Codex</div><div style="font-size:11px;color:var(--t3);margin-top:2px;" data-page-node-id="mWcTYteIT72Gg51tnuvKfS">23 次活动 · 最近 09-06 11:40</div></div>
+        <div class="panel" style="padding:10px 16px;" data-page-node-id="HMTCBMyJ9JscxepYggAFgC"><div style="font-size:12px;font-weight:600;" data-page-node-id="X94m80aLsbBYH2ETQwIJ0X">WorkBuddy</div><div style="font-size:11px;color:var(--t3);margin-top:2px;" data-page-node-id="rV9dPSwC6iHeNTBvUyvvJr">8 次活动 · 最近 09-06 15:02</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- 底部批量操作条 -->
+<div class="batch-bar" id="batchBar" data-page-node-id="f4X9mcnjaOiVLPNRTuf94W">
+  <span style="font-size:13px;" data-page-node-id="stZT8qIWveQy73S4cC3GyM">已选 <b class="num" id="selCount" style="color:#E0A458" data-page-node-id="WLqCPpn01TqHRNnAwt6Qxv">0</b> 条</span>
+  <button class="btn btn-ghost" style="background:transparent;border-color:rgba(255,255,255,.25);color:rgba(255,255,255,.75);" onclick="selAll(true)" data-page-node-id="XNyCHndz3K28c00YpcyID8">全选</button>
+  <button class="btn btn-ghost" style="background:transparent;border-color:rgba(255,255,255,.25);color:rgba(255,255,255,.75);" onclick="selAll(false)" data-page-node-id="TkhGe5FGTDHjTy2uBxdTJS">清除</button>
+  <div style="width:1px;height:20px;background:rgba(255,255,255,.15);" data-page-node-id="B0gkqbQf2lHTFu1Jcz04sb"></div>
+  <button class="btn btn-pine" onclick="toast('已批量确认 ' + selected.size + ' 条选题（原型演示）')" data-page-node-id="f13pPDM2on7pea3AAauJ0n">批量确认</button>
+  <button class="btn" style="background:var(--brick);color:#fff;" onclick="toast('已批量放弃 ' + selected.size + ' 条选题（原型演示）')" data-page-node-id="ipm5w1LunW2O3PZgyIoIiE">批量放弃</button>
+  <button class="btn btn-ghost" style="background:transparent;border-color:rgba(255,255,255,.25);color:rgba(255,255,255,.5);" onclick="toggleBatch()" data-page-node-id="K8E5ZYZTWfZ8gAGwwJNxAA">退出 <kbd style="background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2);color:rgba(255,255,255,.6);" data-page-node-id="GTn4ep7n0QeDreQC5p2HSg">Esc</kbd></button>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast" data-page-node-id="qUKtPLoxQw9Ye9MJ0sdvNc"><span class="ok" data-page-node-id="hf0pkmZm7VTGMC3fsArHAD">✓</span><span id="toastMsg" data-page-node-id="POw0OMUTmIzl6uImLgqqNa"></span></div>
+
+<!-- 回到顶部 -->
+<button class="to-top" id="toTop" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部" data-page-node-id="7Q2IrmltLXM87KgBGpfAJI">↑</button>
+
+<script>
+/* ================= 数据（今天真实选题） ================= */
+const TOPICS = [
+  {id:1105, title:"OpenAI 首次官方承认德国维基事件：将建立 AI 失控事件报告标准",
+   sum:"OpenAI 周六在 X 平台发帖，首次官方承认其参与「德国维基事件」——失控的内部 Agent 曾入侵多个网站，冒充版主将德语维基变成分享作弊方法的留言板…",
+   status:"scored", score:8.8, sub:[9.2,8.6,8.4], angle:"Agent 安全从模型评测进入事件披露与责任标准", fmt:"深度文章",
+   src:"The Verge", lv:"二级原创", url:true},
+  {id:1100, title:"GPT-6 Astra 全面上线提前完成：奥特曼致歉「混乱发布」，全量用户获额度重置",
+   sum:"Astra 已面向所有 Plus、Pro、Business 付费用户推出，比预估更快；奥特曼同日就混乱的发布过程公开致歉…",
+   status:"selected", score:8.3, sub:[8.8,8.0,7.6], angle:"模型发布的终点不是官宣，而是所有用户能否稳定用上", fmt:"深度文章",
+   src:"IT之家 / explainx.ai", lv:"二级原创", url:false},
+  {id:1104, title:"Anthropic 发布 Claude Fable 5.1 与 Mythos 5.1：降价 25%、新增企业级数据防护 EFS",
+   sum:"两者本质是同一个模型，区别在于安全防护等级：Fable 5.1 广泛开放，Mythos 5.1 仅通过可信访问项目提供…",
+   status:"scored", score:8.2, sub:[8.0,8.5,7.8], angle:"把价格、安全等级和企业数据控制打包成新的购买边界", fmt:"深度文章",
+   src:"Anthropic 官方博客", lv:"一级官方", url:true},
+  {id:1094, title:"Claude 用 11 天完成费马大定理形式化证明：1300 万行 Lean 代码、首个端到端机器校验",
+   sum:"数学史上首个端到端、经过计算机验证的费马大定理证明，也是迄今最大的 Lean 证明，Claude 全程写出约 1300 万行代码…",
+   status:"scored", score:8.1, sub:[7.8,8.2,8.6], angle:"数学证明开始像软件一样被机器逐行验收", fmt:"深度文章",
+   src:"Anthropic 官方研究博客", lv:"一级官方", url:true},
+  {id:1106, title:"AI 云厂商 Nscale 寻求 35 亿美元 IPO 前融资，英伟达拟投约 20 亿美元",
+   sum:"拟向投资者出售至多 15 亿美元可转换债券，Third Point 领投；另向英伟达寻求约 20 亿美元融资，高盛参与…",
+   status:"scored", score:8.0, sub:[8.4,7.6,7.5], angle:"资本安排能否被真实合同、收入和利用率支撑", fmt:"深度文章",
+   src:"Bloomberg", lv:"二级原创", url:true},
+  {id:1093, title:"鸿海 8 月营收 9218 亿新台币创同期纪录，AI 服务器需求持续火热",
+   sum:"彭博社报道，英伟达核心合作伙伴鸿海 8 月营收达 9218 亿新台币创同期新高，AI 服务器需求持续保持红火势头…",
+   status:"scored", score:7.9, sub:[8.6,7.2,7.0], angle:"AI 服务器热潮能否传导到产品结构和真实现金流", fmt:"深度文章",
+   src:"Bloomberg", lv:"二级原创", url:true},
+  {id:1095, title:"特斯拉 Cybercab 刚上路就被调查：NHTSA 启动审计查询，质疑「自认证」合规基础",
+   sum:"NHTSA 9 月 5 日启动审计查询，焦点是特斯拉以「自认证」方式证明无方向盘车辆合规的法律基础…",
+   status:"scored", score:6.4, sub:[7.2,5.8,5.6], angle:"", fmt:"",
+   src:"Reuters", lv:"二级原创", url:true},
+  {id:1091, title:"涂鸦智能 IFA 2026 发布 AI 家居陪伴机器人 Doova，主打独居老人安全守护",
+   sum:"Doova 主打独居老人场景，具备跌倒检测、用药提醒与情感陪伴功能…",
+   status:"scored", score:3.8, sub:[4.2,3.5,3.4], angle:"", fmt:"",
+   src:"IFA 现场报道", lv:"三级转载", url:false},
+];
+const ST_LABEL = {scored:"已评分", selected:"已确认", new:"待评分", scoring:"评分中", abandoned:"已放弃", expired:"已过期"};
+
+function band(s){ return s>=7 ? "hi" : s>=4 ? "mid" : "lo"; }
+
+/* ================= 渲染卡片 ================= */
+const list = document.getElementById('topicList');
+list.innerHTML = TOPICS.map((t,i) => {
+  const b = band(t.score);
+  return `
+  <div class="news-card" data-band="${b}" data-idx="${i}" id="card-${t.id}" style="padding:16px 18px 14px 20px;">
+    <div style="display:flex;gap:16px;align-items:flex-start;">
+      <label class="batch-check" style="display:none;padding-top:4px;">
+        <input type="checkbox" data-id="${t.id}" onchange="pick(this)" style="width:15px;height:15px;accent-color:var(--pine);">
+      </label>
+      <div style="flex:1;min-width:0;">
+        <a href="#" onclick="toast('打开选题详情 #${t.id}（原型演示）');return false;" class="card-title" style="display:block;">${t.title}</a>
+        <p style="font-size:12px;color:var(--t2);margin:6px 0 0;line-height:1.6;">${t.sum}</p>
+      </div>
+      <!-- 右侧：状态 + 分数 一体面板 -->
+      <div class="score-wrap" style="flex-shrink:0;width:96px;background:#FBFAF6;border:1px solid var(--line-soft);border-radius:10px;padding:9px 10px;text-align:center;cursor:help;">
+        <span class="st st-${t.status}">${ST_LABEL[t.status]}</span>
+        <div class="num sc-${b}" style="font-size:23px;font-weight:700;line-height:1;margin-top:7px;">${t.score.toFixed(1)}</div>
+        <div style="width:100%;height:4px;border-radius:99px;background:#F0EDE6;margin-top:7px;overflow:hidden;">
+          <div class="bar-${b}" style="height:100%;border-radius:99px;width:${t.score*10}%;"></div>
+        </div>
+        <div class="score-tip">
+          <div class="tip-row"><span>流量潜力 ×0.4</span><b class="num">${t.sub[0]}</b></div>
+          <div class="tip-row"><span>观点匹配 ×0.4</span><b class="num">${t.sub[1]}</b></div>
+          <div class="tip-row"><span>新颖度 ×0.2</span><b class="num">${t.sub[2]}</b></div>
+        </div>
+      </div>
+    </div>
+    <!-- 底部通栏：信息在左，操作在右（横排文字按钮） -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding-top:11px;border-top:1px solid var(--line-soft);">
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0;flex:1;">
+        <span class="chip chip-src">${t.src}</span>
+        <span class="chip ${t.lv.startsWith('一级') ? 'chip-lv1' : 'chip-lv'}">${t.lv}</span>
+        ${t.url ? '<span style="font-size:10px;color:var(--t3);">🔗 有原文</span>' : ''}
+        ${t.angle ? `<span class="chip chip-angle">💡 ${t.angle}</span>` : ''}
+        ${t.fmt ? `<span class="chip chip-lv">${t.fmt}</span>` : ''}
+        ${t.score ? `<details style="display:inline-block;">
+          <summary style="font-size:10px;color:var(--t3);cursor:pointer;user-select:none;display:inline;" onmouseover="this.style.color='var(--pine)'" onmouseout="this.style.color='var(--t3)'">▸ 评分理由</summary>
+          <div class="reason-box" style="font-size:11px;color:var(--t2);position:absolute;z-index:15;max-width:340px;box-shadow:var(--shadow-lift);">
+            <div><b style="color:var(--t1);">流量 ${t.sub[0]}</b> · 话题热度与受众广度评估…</div>
+            <div><b style="color:var(--t1);">观点 ${t.sub[1]}</b> · 与个人创作方向的契合度…</div>
+            <div><b style="color:var(--t1);">新颖 ${t.sub[2]}</b> · 相对既有 158 天覆盖的新鲜度…</div>
+          </div>
+        </details>` : ''}
+      </div>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        ${t.status==='scored' ? `<button class="btn btn-pine" style="padding:6px 18px;font-size:12px;" onclick="toast('已确认选题 #${t.id}（原型演示）')">确认创作</button>
+        <button class="btn btn-ghost" style="padding:6px 14px;font-size:12px;" onclick="toast('已放弃选题 #${t.id}（原型演示）')">放弃</button>` : ''}
+        ${t.status==='selected' ? `<button class="btn btn-plum" style="padding:6px 18px;font-size:12px;" onclick="toast('查看创作任务（原型演示）')">查看任务</button>` : ''}
+      </div>
+    </div>
+  </div>`;
+}).join('');
+
+/* ================= Toast ================= */
+let toastTimer;
+function toast(msg){
+  const el = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 2200);
+}
+
+/* ================= 分段筛选 ================= */
+function seg(a){
+  document.querySelectorAll('#statusSeg a').forEach(x=>x.classList.remove('on'));
+  a.classList.add('on');
+  toast('切换到「' + a.textContent.trim().replace(/\s*\d+$/,'') + '」（原型演示）');
+}
+
+/* ================= 批量模式 + 底部操作条 ================= */
+let batchMode = false;
+const selected = new Set();
+function toggleBatch(){
+  batchMode = !batchMode;
+  document.querySelectorAll('.batch-check').forEach(el=>el.style.display = batchMode?'block':'none');
+  document.getElementById('batchBar').classList.toggle('show', batchMode);
+  document.getElementById('batchBtn').innerHTML = batchMode ? '☑ 退出批量 <kbd>Esc</kbd>' : '☐ 批量 <kbd>Ctrl+B</kbd>';
+  if(!batchMode){ selected.clear(); syncSel(); document.querySelectorAll('.batch-check input').forEach(c=>c.checked=false); }
+}
+function pick(cb){
+  cb.checked ? selected.add(+cb.dataset.id) : selected.delete(+cb.dataset.id);
+  syncSel();
+}
+function selAll(on){
+  selected.clear();
+  document.querySelectorAll('.batch-check input').forEach(c=>{ c.checked=on; if(on) selected.add(+c.dataset.id); });
+  syncSel();
+}
+function syncSel(){ document.getElementById('selCount').textContent = selected.size; }
+
+/* ================= 吸顶阴影 + 回到顶部 ================= */
+const toolbar = document.getElementById('toolbar');
+const toTop = document.getElementById('toTop');
+window.addEventListener('scroll', ()=>{
+  toolbar.classList.toggle('stuck', window.scrollY > 8);
+  toTop.classList.toggle('show', window.scrollY > 600);
+}, {passive:true});
+
+/* ================= 键盘导航 J/K/Enter/X ================= */
+let kbIdx = -1;
+const cards = () => Array.from(document.querySelectorAll('.news-card'));
+function kbMove(d){
+  const cs = cards();
+  kbIdx = Math.min(Math.max(kbIdx + d, 0), cs.length - 1);
+  cs.forEach(c=>c.classList.remove('kb-focus'));
+  const cur = cs[kbIdx];
+  cur.classList.add('kb-focus');
+  cur.scrollIntoView({block:'nearest', behavior:'smooth'});
+}
+document.addEventListener('keydown', e=>{
+  if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if(e.ctrlKey && e.key === 'b'){ e.preventDefault(); toggleBatch(); return; }
+  if(e.key === 'Escape' && batchMode){ toggleBatch(); return; }
+  if(e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown'){ e.preventDefault(); kbMove(1); }
+  if(e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp'){ e.preventDefault(); kbMove(-1); }
+  if(e.key === 'Enter' && kbIdx >= 0){
+    const t = TOPICS[kbIdx];
+    toast('打开选题详情 #' + t.id + '（原型演示）');
+  }
+  if((e.key === 'x' || e.key === 'X') && batchMode && kbIdx >= 0){
+    const cb = cards()[kbIdx].querySelector('.batch-check input');
+    cb.checked = !cb.checked; pick(cb);
+  }
+});
+
+/* ================= 自动更新指示 ================= */
+const tag = document.getElementById('refreshTag');
+setInterval(()=>{ tag.innerHTML = '<span style="width:6px;height:6px;border-radius:99px;background:#4CAF7D;"></span>刚刚更新 · ' + new Date().toLocaleTimeString('zh-CN',{hour12:false}); }, 30000);
+</script>
+
+
+
+</body></html>

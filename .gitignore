@@ -1,0 +1,41 @@
+# ===== 运行环境与依赖 =====
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ===== 运行数据（真实选题库、日志、密钥配置、Codex 运行目录）=====
+# 这些是本地运行产物，含真实内容与可能的凭据，不进入版本库。
+data/
+runtime/
+tmp/
+*.log
+
+# ===== 环境与凭据 =====
+.env
+.env.*
+
+# ===== 根目录历史运行产物（一次性 JSON / HTML）=====
+/operator_plan_*.json
+/operator-plan-*.json
+/score_*.json
+/scoring-*.json
+/callback_*.json
+/editor_stage_*.json
+/review_stage_*.json
+/stage_*.json
+/stage-*.json
+/_dash_check.html
+
+# ===== 隐藏的 Codex 运行产物（含 callback_token 等凭据）=====
+.codex-*.json
+
+# ===== 过期备份目录 =====
+app/templates.bak-*/
+
+# ===== 编辑器 / 系统 =====
+.idea/
+.vscode/
+Thumbs.db
+Desktop.ini
+nul

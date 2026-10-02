@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Agent工作台 - 内容生产中心{% endblock %}
+{% block nav_agent %}bg-brand-50 text-brand-700{% endblock %}
+
+{% block content %}
+<!-- 统一执行入口：任务仍属于生产主线，不另设反馈或决策工作台。 -->
+<div class="mb-6 bg-brand-50 border border-brand-100 rounded-lg p-5">
+    <div class="flex items-start justify-between gap-4">
+        <div>
+            <h2 class="text-lg font-bold text-gray-800">统一执行入口</h2>
+            <p class="text-sm text-gray-600 mt-1">OpenClaw 会从生产任务队列原子领取下一条任务契约，按内容创作工作流执行，并回传 Obsidian 产物。这里用于查看执行状态和异常，不再拆出另一套决策流程。</p>
+        </div>
+        <span class="shrink-0 text-xs font-medium text-brand-700 bg-white border border-brand-200 rounded px-2 py-1">生产任务主线</span>
+    </div>
+    <div class="grid grid-cols-3 gap-3 mt-4 text-xs text-gray-600">
+        <div class="bg-white/80 rounded border border-brand-100 p-3"><span class="font-semibold text-gray-800">1. 领取</span><br>获取任务契约和回传凭证</div>
+        <div class="bg-white/80 rounded border border-brand-100 p-3"><span class="font-semibold text-gray-800">2. 执行</span><br>连续运行内容创作 Skill</div>
+        <div class="bg-white/80 rounded border border-brand-100 p-3"><span class="font-semibold text-gray-800">3. 回传</span><br>校验项目、主稿和配图路径</div>
+    </div>
+</div>
+
+<!-- 流水线概览 -->
+<div class="mb-6">
+    <h2 class="text-lg font-bold text-gray-800 mb-3">生产流水线</h2>
+    <div class="grid grid-cols-4 gap-3">
+        <div class="bg-white rounded-lg border border-gray-200 p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-3xl font-bold text-gray-700">{{ pending_count }}</div>
+                    <div class="text-xs text-gray-500 mt-1">待评分</div>
+                </div>
+                <div class="text-2xl">📥</div>
+            </div>
+            <div class="text-xs text-gray-400 mt-2">OpenClaw采集后等待评分</div>
+        </div>
+        <div class="bg-white rounded-lg border border-gray-200 p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-3xl font-bold text-green-600">{{ scored_count }}</div>
+                    <div class="text-xs text-gray-500 mt-1">已评分</div>
+                </div>
+                <div class="text-2xl">📊</div>
+            </div>
+            <div class="text-xs text-gray-400 mt-2">Agent评分完成，等待确认</div>
+        </div>
+        <div class="bg-white rounded-lg border border-gray-200 p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-3xl font-bold text-purple-600">{{ selected_count }}</div>
+                    <div class="text-xs text-gray-500 mt-1">已确认</div>
+                </div>
+                <div class="text-2xl">✅</div>
+            </div>
+            <div class="text-xs text-gray-400 mt-2">任务已排队、领取或执行中</div>
+        </div>
+        <div class="bg-white rounded-lg border border-gray-200 p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-3xl font-bold text-emerald-700">{{ published_count }}</div>
+                    <div class="text-xs text-gray-500 mt-1">发布稿完成</div>
+                </div>
+                <div class="text-2xl">🚀</div>
+            </div>
+            <div class="text-xs text-gray-400 mt-2">等待人工发布与 OPC-ERP 回流</div>
+        </div>
+    </div>
+</div>
+
+<!-- Agent状态 -->
+<div class="mb-6">
+    <h2 class="text-lg font-bold text-gray-800 mb-3">Agent 状态</h2>
+    <div class="grid grid-cols-3 gap-3">
+        {% if agent_stats %}
+            {% for a in agent_stats %}
+            <div class="bg-white rounded-lg border border-gray-200 p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                    <span class="text-sm font-medium text-gray-700">{{ a.agent_name }}</span>
+                </div>
+                <div class="text-xs text-gray-500 space-y-1">
+                    <div>总活动: <span class="font-medium text-gray-700">{{ a.cnt }} 次</span></div>
+                    <div>最近活动: <span class="text-gray-600">{{ a.last_time[:16] }}</span></div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="col-span-3 text-center py-8 text-gray-400 text-sm">暂无Agent活动记录</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 评分操作区 -->
+<div class="mb-6">
+    <h2 class="text-lg font-bold text-gray-800 mb-3">评分操作</h2>
+    <div class="bg-white rounded-lg border border-gray-200 p-5">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h3 class="text-sm font-medium text-gray-700">Agent评分</h3>
+                <p class="text-xs text-gray-500 mt-1">
+                    通过 <code class="text-xs bg-gray-100 px-1 rounded">GET /api/scoring-pending</code> 获取待评分选题及上下文，
+                    评分后通过 <code class="text-xs bg-gray-100 px-1 rounded">POST /api/topics/agent-score</code> 批量提交。
+                </p>
+            </div>
+            <div class="text-right">
+                <div class="text-3xl font-bold text-gray-700">{{ pending_count }}</div>
+                <div class="text-xs text-gray-500">条待评分</div>
+            </div>
+        </div>
+        
+        <div class="bg-gray-50 rounded p-3 mb-3">
+            <p class="text-xs text-gray-600 mb-2">Agent评分API使用流程：</p>
+            <ol class="text-xs text-gray-500 space-y-1 list-decimal list-inside">
+                <li>调用 <code class="text-xs bg-white px-1 rounded border">GET /api/scoring-pending</code> — 一次获取所有待评分选题 + 专业画像 + 覆盖关键词 + 评分标准</li>
+                <li>Agent逐条评估三维分数（流量潜力/观点匹配/新颖度），给出分值和理由</li>
+                <li>调用 <code class="text-xs bg-white px-1 rounded border">POST /api/topics/agent-score</code> — 批量提交评分结果；错误会逐条返回</li>
+                <li>刷新看板，选题状态从"待评分"变为"已评分"</li>
+            </ol>
+        </div>
+
+        <div class="flex gap-2">
+            <button onclick="window.open('/api/scoring-pending', '_blank')" 
+                    class="px-4 py-2 bg-brand-600 text-white rounded text-sm hover:bg-brand-700">
+                查看待评分数据
+            </button>
+            <a href="/?status=new" class="px-4 py-2 bg-white border border-gray-200 text-gray-600 rounded text-sm hover:bg-gray-50">
+                查看看板待评分
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- 最近评分记录 -->
+{% if recent_scores %}
+<div class="mb-6">
+    <h2 class="text-lg font-bold text-gray-800 mb-3">最近评分 ({{ recent_scores|length }})</h2>
+    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="bg-gray-50 border-b border-gray-200">
+                    <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500">选题</th>
+                    <th class="text-center px-3 py-2 text-xs font-semibold text-gray-500">流量</th>
+                    <th class="text-center px-3 py-2 text-xs font-semibold text-gray-500">观点</th>
+                    <th class="text-center px-3 py-2 text-xs font-semibold text-gray-500">新颖</th>
+                    <th class="text-center px-3 py-2 text-xs font-semibold text-gray-500">综合</th>
+                    <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">评分者</th>
+                    <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">时间</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in recent_scores %}
+                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                    <td class="px-4 py-2">
+                        <a href="/topics/{{ s.topic_id }}" class="text-xs text-gray-700 hover:text-brand-600">{{ s.topic_title[:40] }}{% if s.topic_title|length > 40 %}...{% endif %}</a>
+                    </td>
+                    <td class="text-center px-3 py-2 text-xs">{{ formatScore(s.traffic_score) }}</td>
+                    <td class="text-center px-3 py-2 text-xs">{{ formatScore(s.opinion_score) }}</td>
+                    <td class="text-center px-3 py-2 text-xs">{{ formatScore(s.novelty_score) }}</td>
+                    <td class="text-center px-3 py-2">
+                        <span class="text-xs px-2 py-0.5 rounded font-bold {{ scoreClass(s.total_score) }}">{{ formatScore(s.total_score) }}</span>
+                    </td>
+                    <td class="px-3 py-2 text-xs text-gray-500">{{ s.model_used }}</td>
+                    <td class="px-3 py-2 text-xs text-gray-400">{{ s.scored_at[:16] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- 活动日志 -->
+<div>
+    <h2 class="text-lg font-bold text-gray-800 mb-3">活动日志</h2>
+    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div class="max-h-96 overflow-y-auto">
+            <table class="w-full text-sm">
+                <thead class="sticky top-0">
+                    <tr class="bg-gray-50 border-b border-gray-200">
+                        <th class="text-left px-4 py-2 text-xs font-semibold text-gray-500">时间</th>
+                        <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">Agent</th>
+                        <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">操作</th>
+                        <th class="text-left px-3 py-2 text-xs font-semibold text-gray-500">摘要</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if recent_activities %}
+                    {% for a in recent_activities %}
+                    <tr class="border-b border-gray-100 hover:bg-gray-50">
+                        <td class="px-4 py-2 text-xs text-gray-400 whitespace-nowrap">{{ a.created_at[:16] }}</td>
+                        <td class="px-3 py-2 text-xs font-medium text-gray-700">{{ a.agent_name }}</td>
+                        <td class="px-3 py-2 text-xs text-gray-500">{{ a.activity_type }}</td>
+                        <td class="px-3 py-2 text-xs text-gray-600">
+                            {% if a.topic_title %}
+                            <a href="/topics/{{ a.target_id }}" class="hover:text-brand-600">{{ a.summary }}: {{ a.topic_title[:30] }}...</a>
+                            {% else %}
+                            {{ a.summary }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% else %}
+                    <tr><td colspan="4" class="text-center py-8 text-gray-400 text-sm">暂无活动记录</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

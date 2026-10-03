@@ -7,15 +7,23 @@
   高优先级动作命中即定，不再看低优先级 —— 避免"OpenAI 融资"被模型名词抢走。
 
 与 taxonomy.py 的关系（分工，不是两套分类）：
-- `taxonomy.CATEGORIES` 仍是唯一的 7 类清单，本文件不新增类别。
+- `taxonomy.CATEGORIES` 仍是唯一的类别清单，本文件不新增类别。
 - `verbs.classify()` 是判定实现（动词优先）；动词与领域词全不命中时，
-  退回 `taxonomy.classify()` 的名词弱信号兜底，最后一档才是"其他"。
+  先看"讨论信号"（？/评论/盘点/趋势…）归「行业讨论」，否则退回
+  `taxonomy.classify()` 的名词弱信号兜底，最后一档才是"其他"。
+
+周老师 2026-10-03 追加（v4）：
+- 新增「行业讨论」兜底类：没有单一主体的观点/评论/圆桌/盘点/趋势综述，
+  此前一律落"未识别"，用户翻不到。它排在动词链**之后**，绝不抢走具体新闻。
+- 政策链补政府动作动词（规定/出台/通知/指引/筹备/磋商…）：此前"中国出台规定
+  整治 AI 伴侣机器人"因为"规定"不在链里，被"机器人"抢去了 AI 工具与应用。
 """
 
 from __future__ import annotations
 
 import re
 
+from app.geo import has_gov_subject
 from app.taxonomy import OTHER, classify as _noun_classify
 
 # ===== 动词/动名词优先级链（顺序即优先级，勿随意调）=====
@@ -25,13 +33,14 @@ _VERB_CHAIN: list[tuple[str, re.Pattern]] = [
     ("政策与监管", re.compile(
         r"监管|调查|起诉|诉讼|被诉|罚款|立法|法案|法规|禁令|封禁|下架|制裁|听证|传唤|合规|判决|裁定"
         r"|牌照|许可|出口管制|行政令|关税|反垄断|备案|审查|处罚|追责|质询|诉请|管制|限制|审批|资质|禁售"
+        r"|规定|出台|约谈|督办|磋商|会晤|双边|征求意见|议案|提案"
         r"|\bregulat|\bantitrust|\blawsuit|\bsued?\b|\bcourt\b|\bruling|\bbanned?\b|\bcompliance"
         r"|\bcongress|\bsenate\b|\bfine[sd]?\b|\bpenalt|\bprobe\b|\binvestigat",
         re.I)),
     ("AI 安全与风险", re.compile(
         r"失控|越狱|入侵|渗透|突破沙箱|攻击|遭攻击|被攻击|泄露|窃取|诈骗|欺诈|伪造|深度伪造|欺骗|隐瞒"
         r"|滥用|事故|宕机|崩溃|叛变|逃逸|伤害|偏见|歧视|隐私|后门|投毒|勒索|蠕虫|漏洞|恶意|钓鱼"
-        r"|叫停|紧急叫停|暂停训练|暂停模型|暂停研发|安全事件|安全担忧|安全组织|安全联盟|安全标准|安全准则|安全协议|对齐失败|对齐|作恶|作弊|违规|翻车|闯祸"
+        r"|叫停|紧急叫停|暂停训练|暂停模型|暂停研发|安全事件|安全担忧|安全组织|安全联盟|安全标准|安全准则|安全协议|安全提示|安全风险|安全警示|警惕|对齐失败|对齐|作恶|作弊|违规|翻车|闯祸"
         r"|\bmisalign|\bjailbreak|\bexploit|\bvulnerab|\battacks?\b|\bbreach|\bleak|\bscam|\bfraud"
         r"|\bdeepfake|\bprivacy|\bethic|\bbias\b|\bdiscriminat|\bworm\b|\bmalicious|\bpoison|\bhack"
         r"|\bstole|\bstolen|\bpaus\w*|\bhalted|\bsuspended|shut ?down|\bsafety (incident|concern)|\bmisuse",
@@ -70,16 +79,53 @@ _VERB_CHAIN: list[tuple[str, re.Pattern]] = [
 ]
 
 
+# ===== 讨论信号（兜底类「行业讨论」）=====
+# 只在前 6 类动词全不命中时才有机会 —— 它是收容所，不抢具体新闻。
+# 典型：观点、圆桌、盘点、榜单、趋势综述、访谈。
+DISCUSS_NAME = "行业讨论"
+_DISCUSS = re.compile(
+    r"[？?]|怎么看|怎么看待|为什么|如何看|该不该|是否|会不会|能不能|值不值"
+    r"|之争|辩论|圆桌|对谈|访谈|座谈|研讨|评论|观点|看法|思考|反思"
+    r"|趋势|未来|何去何从|意味着|启示|盘点|综述|榜单|百位|排名|观察|解读|风向"
+    r"|\bopinion\b|\bdebate\b|roundtable|\bpanel\b|\boutlook\b|state of|future of|lessons",
+    re.I,
+)
+
+
+# 分类规则版本。改动词链 / 讨论信号 / 兜底逻辑后 +1，启动迁移比对后重判全库。
+# 1 = 动词优先链（安全>政策>商业>Agent>技术>应用）；
+# 2 = 新增「行业讨论」兜底 + 政策链补政府动作动词 + 泛链不再参与摘要兜底。
+CLASSIFY_VERSION = 3
+
+# 泛链：这些词太常见，靠**摘要**判定极易误伤（"发布/上线/工具/模型"几乎每篇都有）。
+# 它们在标题上照常生效；摘要兜底时跳过，交给名词弱信号兜底更稳。
+# 例：#1072「中美筹备 AI 安全对话」标题无链词，摘要里的"应用"把它抢进了
+# AI 工具与应用；跳过泛链后落回名词兜底，归 AI 安全与风险。
+_WEAK_CHAINS = {"AI 工具与应用", "大模型与技术"}
+
+
 def classify(title: str, summary: str = "") -> str:
-    """动词优先归口：标题先按优先级链扫，再扫摘要；全不命中才退回名词兜底。"""
+    """动词优先归口。
+
+    标题：动词链 → 讨论信号。
+    摘要：只给 政策/安全/商业/Agent 四条链兜底（泛链跳过）。
+    再兜政府主体（含政府机构/政府人物 → 政策），最后才是讨论信号与名词弱信号。
+    政府主体排在讨论之前："特朗普新设超级智能部长"是政治动作，不是行业闲聊。
+    """
     t = title or ""
     s = summary or ""
     for name, pat in _VERB_CHAIN:
         if pat.search(t):
             return name
     for name, pat in _VERB_CHAIN:
+        if name in _WEAK_CHAINS:
+            continue
         if pat.search(s):
             return name
+    if has_gov_subject(t) or has_gov_subject(s):
+        return "政策与监管"
+    if _DISCUSS.search(t) or _DISCUSS.search(s):
+        return DISCUSS_NAME
     return _noun_classify(t, s)
 
 

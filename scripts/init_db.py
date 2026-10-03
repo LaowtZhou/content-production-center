@@ -708,6 +708,54 @@ def _migrate_legacy_data(conn):
         print(f"三级树迁移完成：{len(rows)} 条打地域/主体标签，"
               f"分类按动词重判改动 {changed} 条，{unified} 条事件线统一分类")
 
+    # 2026-10-03：分类规则带版本号（app.verbs.CLASSIFY_VERSION），版本变了才全库重判。
+    # v2：新增第 8 类「行业讨论」+ 政策链补政府动作动词 + 泛链（应用/技术）不再参与摘要兜底。
+    from app.verbs import CLASSIFY_VERSION, classify as _vclassify2
+    stored_cv = conn.execute(
+        "SELECT value FROM system_settings WHERE key = 'classify_version'"
+    ).fetchone()
+    if not stored_cv or str(stored_cv["value"]) != str(CLASSIFY_VERSION):
+
+        rows_c = conn.execute(
+            "SELECT id, title, COALESCE(summary,'') AS summary, category, "
+            "COALESCE(event_key,'') AS ek FROM topics"
+        ).fetchall()
+
+        line_titles_c: dict[str, list] = {}
+        line_ids_c: dict[str, list] = {}
+        changed_c = 0
+        for row in rows_c:
+            new_cat = _vclassify2(row["title"], row["summary"])
+            if (row["category"] or "") != new_cat:
+                changed_c += 1
+                conn.execute(
+                    "INSERT INTO topic_events (topic_id, event_type, metadata) "
+                    "VALUES (?, 'category_reclassified', ?)",
+                    (row["id"], json.dumps({"from": row["category"] or "", "to": new_cat,
+                                            "rule": "v2"}, ensure_ascii=False)),
+                )
+            conn.execute("UPDATE topics SET category = ?, updated_at = ? WHERE id = ?",
+                         (new_cat, now, row["id"]))
+            if row["ek"]:
+                line_titles_c.setdefault(row["ek"], []).append(row["title"] or "")
+                line_ids_c.setdefault(row["ek"], []).append(row["id"])
+
+        # 事件线整线统一（默认不跨分类）：把整线标题拼起来再判一次。
+        unified_c = 0
+        for ek, titles in line_titles_c.items():
+            line_cat = _vclassify2(" ".join(titles))
+            for tid in line_ids_c[ek]:
+                conn.execute("UPDATE topics SET category = ? WHERE id = ?", (line_cat, tid))
+            unified_c += 1
+
+        conn.execute(
+            "INSERT OR REPLACE INTO system_settings (key, value, updated_at) "
+            "VALUES ('classify_version', ?, ?)",
+            (str(CLASSIFY_VERSION), now),
+        )
+        print(f"分类规则 v{CLASSIFY_VERSION} 迁移完成：改动 {changed_c} 条，"
+              f"{unified_c} 条事件线统一分类")
+
     # 地域/主体判定：规则自带版本号（app.geo.JUDGE_VERSION），版本变了才全库重判。
     # v1 标题→摘要；v2 标题→全文（按实体出现次数，≥2 次才认，宁可判"未识别"也不误挂）；
     # v3 主体词典补齐常见公司/机构（微软、谷歌、小红书…），并纠正 Stability AI（英国）、

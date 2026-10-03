@@ -17,6 +17,10 @@
   此前一律落"未识别"，用户翻不到。它排在动词链**之后**，绝不抢走具体新闻。
 - 政策链补政府动作动词（规定/出台/通知/指引/筹备/磋商…）：此前"中国出台规定
   整治 AI 伴侣机器人"因为"规定"不在链里，被"机器人"抢去了 AI 工具与应用。
+
+周老师 2026-10-03 追加（分类 v4）：
+- 新增第 9 类「周老师AI日记」，按**来源路径**判定（不猜内容），排在所有内容判定之前。
+  它是唯一一个"来源类"类别：同一目录下的素材永远归它，不随标题措辞漂移。
 """
 
 from __future__ import annotations
@@ -24,7 +28,8 @@ from __future__ import annotations
 import re
 
 from app.geo import has_gov_subject
-from app.taxonomy import OTHER, classify as _noun_classify
+from app.taxonomy import DIARY_NAME, is_diary_source
+from app.taxonomy import classify as _noun_classify
 
 # ===== 动词/动名词优先级链（顺序即优先级，勿随意调）=====
 # 政策排在安全前：标题主语是动作发出者 —— "FTC 调查 OpenAI 的安全实践"主线是监管动作，
@@ -94,7 +99,12 @@ _DISCUSS = re.compile(
 
 # 分类规则版本。改动词链 / 讨论信号 / 兜底逻辑后 +1，启动迁移比对后重判全库。
 # 1 = 动词优先链（安全>政策>商业>Agent>技术>应用）；
-# 2 = 新增「行业讨论」兜底 + 政策链补政府动作动词 + 泛链不再参与摘要兜底。
+# 2 = 新增「行业讨论」兜底 + 政策链补政府动作动词 + 泛链不再参与摘要兜底；
+# 3 = （历史）版本号启用时的一次中间态。
+#
+# 注意：「周老师AI日记」**不占版本号**。它是来源类判定（source_ref 命中目录即成立），
+# 与内容规则是两条链 —— 走版本号会触发全库重判，连带动到一批无关素材（范围外副作用），
+# 实测会误改 5 条。它走 init_db 的"来源归口闸"（每次启动幂等扫描）。
 CLASSIFY_VERSION = 3
 
 # 泛链：这些词太常见，靠**摘要**判定极易误伤（"发布/上线/工具/模型"几乎每篇都有）。
@@ -104,14 +114,19 @@ CLASSIFY_VERSION = 3
 _WEAK_CHAINS = {"AI 工具与应用", "大模型与技术"}
 
 
-def classify(title: str, summary: str = "") -> str:
-    """动词优先归口。
+def classify(title: str, summary: str = "", source_ref: str | None = None) -> str:
+    """归口总入口。**先判来源，再判内容。**
 
-    标题：动词链 → 讨论信号。
-    摘要：只给 政策/安全/商业/Agent 四条链兜底（泛链跳过）。
-    再兜政府主体（含政府机构/政府人物 → 政策），最后才是讨论信号与名词弱信号。
-    政府主体排在讨论之前："特朗普新设超级智能部长"是政治动作，不是行业闲聊。
+    来源类（第 0 顺位）：source_ref 来自「Codex昨日工作挖掘」→ 周老师AI日记。
+    这是硬事实判定，不猜内容；命中即返回，不再看标题摘要。
+    内容类（第 1 起顺位）：标题动词链 → 摘要四条链兜底 → 政府主体 → 讨论信号
+    → 名词弱信号。政府主体排在讨论之前："特朗普新设超级智能部长"是政治动作，
+    不是行业闲聊。
+
+    source_ref 默认为 None（老调用点不传时行为与从前完全一致）。
     """
+    if is_diary_source(source_ref):
+        return DIARY_NAME
     t = title or ""
     s = summary or ""
     for name, pat in _VERB_CHAIN:

@@ -317,9 +317,10 @@ def _create_editorial_topic(conn, cycle_id: str, proposal: dict[str, Any]) -> di
     tags = [str(tag).strip() for tag in tags if str(tag).strip()][:12]
     if "主编主动选题" not in tags:
         tags.append("主编主动选题")
-    from app.taxonomy import classify
+    # 统一走 app.verbs.classify（唯一判定实现），不要退回 app.taxonomy.classify。
+    from app.verbs import classify
     from app.geo import judge as judge_geo
-    category = classify(title, summary)
+    category = classify(title, summary, source_ref)
     region, entity, _kind = judge_geo(title, raw_content or summary)
     cur = conn.execute(
         """INSERT INTO topics (title, summary, raw_content, source_type, source_ref, tags, status,

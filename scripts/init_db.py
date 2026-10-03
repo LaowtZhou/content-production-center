@@ -710,6 +710,8 @@ def _migrate_legacy_data(conn):
 
     # 2026-10-03：分类规则带版本号（app.verbs.CLASSIFY_VERSION），版本变了才全库重判。
     # v2：新增第 8 类「行业讨论」+ 政策链补政府动作动词 + 泛链（应用/技术）不再参与摘要兜底。
+    # 重判时必须把 source_ref 一起读出来传进 classify()：将来再有内容规则升版，
+    # 若不带 source_ref，「周老师AI日记」这批素材会被内容规则打散回各分类。
     from app.verbs import CLASSIFY_VERSION, classify as _vclassify2
     stored_cv = conn.execute(
         "SELECT value FROM system_settings WHERE key = 'classify_version'"
@@ -718,6 +720,7 @@ def _migrate_legacy_data(conn):
 
         rows_c = conn.execute(
             "SELECT id, title, COALESCE(summary,'') AS summary, category, "
+            "COALESCE(source_ref,'') AS sref, "
             "COALESCE(event_key,'') AS ek FROM topics"
         ).fetchall()
 
@@ -725,14 +728,15 @@ def _migrate_legacy_data(conn):
         line_ids_c: dict[str, list] = {}
         changed_c = 0
         for row in rows_c:
-            new_cat = _vclassify2(row["title"], row["summary"])
+            new_cat = _vclassify2(row["title"], row["summary"], row["sref"])
             if (row["category"] or "") != new_cat:
                 changed_c += 1
                 conn.execute(
                     "INSERT INTO topic_events (topic_id, event_type, metadata) "
                     "VALUES (?, 'category_reclassified', ?)",
                     (row["id"], json.dumps({"from": row["category"] or "", "to": new_cat,
-                                            "rule": "v2"}, ensure_ascii=False)),
+                                            "rule": f"v{CLASSIFY_VERSION}"},
+                                           ensure_ascii=False)),
                 )
             conn.execute("UPDATE topics SET category = ?, updated_at = ? WHERE id = ?",
                          (new_cat, now, row["id"]))
@@ -755,6 +759,41 @@ def _migrate_legacy_data(conn):
         )
         print(f"分类规则 v{CLASSIFY_VERSION} 迁移完成：改动 {changed_c} 条，"
               f"{unified_c} 条事件线统一分类")
+
+    # 2026-10-03：来源类归口闸 —— 第 9 类「周老师AI日记」。
+    # 它与内容类判定是两条链：来源是硬事实（source_ref 落在该目录即成立），不猜内容。
+    # 因此**不占 CLASSIFY_VERSION**（走版本号会触发全库重判，连带动到无关素材），
+    # 而是每次启动扫一遍 source_ref：命中目录且分类不对的才改 —— 天然幂等。
+    # 顺带兜底：将来新增的入库路径若漏传 source_ref，这里也会把它纠回来。
+    from app.taxonomy import DIARY_NAME, is_diary_source
+
+    # 判据自检：坏掉的判据不许静默通过（判据坏 = 整批素材永远归不了口，且没人发现）。
+    # 一正一反两个样例：日记目录必须命中；openclaw 抓的外部 "codex" 新闻必须不命中。
+    _probe_hit = is_diary_source(r"C:\x\Codex昨日工作挖掘\20260903-Codex昨日工作挖掘.md")
+    _probe_miss = is_diary_source(
+        r"C:\x\.openclaw\workspace\ai-news\2026-06-08\2026-06-08-openai-codex-chatgpt.md")
+    if not (_probe_hit and not _probe_miss):
+        print(f"【警告】日记来源判据自检未通过（hit={_probe_hit} miss={_probe_miss}），"
+              f"本轮跳过来源归口。")
+    else:
+        diary_fixed = 0
+        for row in conn.execute(
+            "SELECT id, COALESCE(source_ref,'') AS sref, COALESCE(category,'') AS category "
+            "FROM topics WHERE COALESCE(source_ref,'') <> ''"
+        ).fetchall():
+            if not is_diary_source(row["sref"]) or row["category"] == DIARY_NAME:
+                continue
+            conn.execute("UPDATE topics SET category = ?, updated_at = ? WHERE id = ?",
+                         (DIARY_NAME, now, row["id"]))
+            conn.execute(
+                "INSERT INTO topic_events (topic_id, event_type, metadata) "
+                "VALUES (?, 'category_reclassified', ?)",
+                (row["id"], json.dumps({"from": row["category"], "to": DIARY_NAME,
+                                        "rule": "diary-source"}, ensure_ascii=False)),
+            )
+            diary_fixed += 1
+        if diary_fixed:
+            print(f"日记来源归口：{diary_fixed} 条素材归入「{DIARY_NAME}」")
 
     # 地域/主体判定：规则自带版本号（app.geo.JUDGE_VERSION），版本变了才全库重判。
     # v1 标题→摘要；v2 标题→全文（按实体出现次数，≥2 次才认，宁可判"未识别"也不误挂）；

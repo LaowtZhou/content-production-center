@@ -389,9 +389,14 @@ def process_file(filepath: str) -> int:
 
         # 创建选题
         now = datetime.now().isoformat()
-        from app.taxonomy import classify
+        # 分类必须走 app.verbs.classify（唯一判定实现，含来源类判定）——
+        # 此前这里 import 的是 app.taxonomy.classify（名词弱信号），与启动重判
+        # 使用的规则不是同一套，导致新素材入库分类与重判结果长期不一致。
+        from app.verbs import classify
         from app.geo import judge as judge_geo
-        category = classify(parsed["title"] or "", parsed["summary"] or "")
+        # source_ref（filepath）一并传入：来自「Codex昨日工作挖掘」目录的素材
+        # 按来源归入「周老师AI日记」，不参与内容判定。
+        category = classify(parsed["title"] or "", parsed["summary"] or "", filepath)
         # 地域/主体必须与分类同一次落定：判定规则是「标题优先，标题认不出才读全文」。
         # 漏写这两列 = 新素材进不了归类树，所以入库时就算，不留给事后迁移。
         region, entity, _kind = judge_geo(

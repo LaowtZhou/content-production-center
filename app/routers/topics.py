@@ -464,9 +464,11 @@ def create_topic(topic: TopicCreate):
     conn = get_db()
     now = datetime.now().isoformat()
     # 类别：调用方明确指定且合法则采用，否则自动归类。
-    from app.taxonomy import classify
+    # 统一走 app.verbs.classify（唯一判定实现），不要退回 app.taxonomy.classify。
+    from app.verbs import classify
     from app.geo import judge as judge_geo
-    category = topic.category if is_valid_category(topic.category) else classify(topic.title, topic.summary)
+    category = (topic.category if is_valid_category(topic.category)
+                else classify(topic.title, topic.summary, topic.source_ref))
     # 地域/主体与分类同一次落定，否则手动建的选题进不了归类树。
     region, entity, _kind = judge_geo(topic.title or "", topic.raw_content or topic.summary or "")
     cur = conn.execute(

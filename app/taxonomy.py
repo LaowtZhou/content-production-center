@@ -1,4 +1,4 @@
-"""选题类别体系 —— 8 类固定清单（唯一事实来源）。
+"""选题类别体系 —— 9 类固定清单（唯一事实来源）。
 
 约束（2026-10-02 周老师定）：
 - 类别固定为下面这几个，AI 只能从这几个里选；要加新类只能人工改本文件。
@@ -6,9 +6,17 @@
   2026-10-03 周老师授权新增第 8 类「行业讨论」：用于收编**没有单一主体的**
   观点、评论、圆桌、盘点、趋势综述——此前这类内容无处可去，全被判"未识别"，
   在归类树里翻不到。
+  2026-10-03 周老师授权新增第 9 类「周老师AI日记」：收编 Codex 每日工作挖掘
+  （记录他当天在自己系统里踩的坑、修的问题）。这类是**自己的实操记录**，
+  不是外部 AI 新闻，同类内容此前散落在各个分类里。
 - 分类只做"归口"，不做价值判断；分类结果写入 topics.category。
 - 历史回填、增量自动分类、Agent 覆盖，全部收敛到 classify() / is_valid_category()，
   同一套规则只允许有一份实现。
+
+两类判定，别混：
+- 内容类（前 8 类）：靠标题/摘要内容判定，实现见 app/verbs.py。
+- 来源类（第 9 类「周老师AI日记」）：靠**来源路径**判定（见 is_diary_source）。
+  来源是硬事实，不猜内容，所以它排在所有内容判定之前。
 
 分类算法（v2，修正 v1"泛词吃掉一半标题"的问题）：
 - 每个类别分「强信号」和「弱信号」两档词表。
@@ -32,15 +40,37 @@ CATEGORIES = [
     {"key": "policy",   "name": "政策与监管",     "desc": "法规、监管、诉讼、禁令、标准、政府动作"},
     {"key": "app",      "name": "AI 工具与应用",  "desc": "工具、产品、应用、插件、Copilot、办公提效"},
     {"key": "discuss",  "name": "行业讨论",       "desc": "观点、评论、圆桌、盘点、趋势综述、访谈辩论"},
+    {"key": "diary",    "name": "周老师AI日记",   "desc": "Codex 每日工作挖掘：自己当天踩的坑、修的问题、实操记录"},
     {"key": "other",    "name": "其他",           "desc": "不属于以上各类"},
 ]
 
 CATEGORY_NAMES = [c["name"] for c in CATEGORIES]
 OTHER = "其他"
 
-# 并列时的优先级：越靠前越"具体"，优先归它（在 CATEGORIES 顺序基础上微调）
+# 并列时的优先级：越靠前越"具体"，优先归它（在 CATEGORIES 顺序基础上微调）。
+# 不含「周老师AI日记」——它由来源判定，不参与内容打分。
 PRIORITY = ["政策与监管", "AI 安全与风险", "Agent 与智能体",
             "行业与商业", "AI 工具与应用", "大模型与技术"]
+
+# ===== 来源类类别：周老师AI日记 =====
+# 判定依据是**来源路径**，不是内容。
+# 这批素材是周老师让 Codex 做的每日工作挖掘（记录他当天在自己系统里踩的坑、
+# 修的问题），跟"外部 AI 新闻"是两种东西 —— 用关键词猜必然张冠李戴。
+DIARY_NAME = "周老师AI日记"
+DIARY_SOURCE_MARKER = "Codex昨日工作挖掘"
+_DIARY_SOURCE_RE = re.compile(re.escape(DIARY_SOURCE_MARKER), re.I)
+
+
+def is_diary_source(source_ref: str | None) -> bool:
+    """来源路径是否来自「Codex昨日工作挖掘」目录。
+
+    这是来源判定，不读标题正文，所以不会误判。
+    反着判一次（加保护）：openclaw 抓的
+    `...\\ai-news\\2026-06-08\\2026-06-08-openai-codex-chatgpt.md` 含 "Codex"
+    但**不是**日记来源，必须返回 False —— 所以只认目录名，不认 "Codex"。
+    """
+    return bool(source_ref) and bool(_DIARY_SOURCE_RE.search(str(source_ref)))
+
 
 # 弱信号单独归口所需的最低分（低于此进"其他"，避免硬塞）
 _MIN_WEAK = 1.5
@@ -107,14 +137,15 @@ _COMPILED: list[tuple[str, list[tuple[re.Pattern, str]]]] = [
 
 
 def is_valid_category(name: str | None) -> bool:
-    """是否为合法的 7 类之一。AI 只能写这 7 个值。"""
+    """是否为合法的类别之一（见 CATEGORY_NAMES）。AI 只能写这几个值。"""
     return bool(name) and name in CATEGORY_NAMES
 
 
 def classify(title: str, summary: str = "") -> str:
-    """按关键词给选题归口，返回 7 类之一。看不懂就归"其他"。
+    """按关键词给选题归口（只做**内容类**，来源类见 is_diary_source）。看不懂就归"其他"。
 
     标题权重 1.0，摘要权重 0.4。强信号优先；无强信号时按弱信号定夺。
+    注意：调用方应优先走 app.verbs.classify()，它会先判来源类再落到这里。
     """
     t = title or ""
     s = summary or ""

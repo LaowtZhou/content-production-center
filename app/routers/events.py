@@ -21,6 +21,8 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from app.config import get_db
+from app.services.event_lines import unify_line
+from app.verbs import classify as _classify
 
 router = APIRouter()
 
@@ -133,9 +135,22 @@ def event_merge(body: MergeRequest):
             (tid, json.dumps({"event_key": event_key, "members": ids, "by": body.agent,
                               "note": body.note}, ensure_ascii=False)),
         )
+
+    # 整线一致：并线后必须让整条线待在同一格（分类/地域/主体），否则归类树会
+    # 把同一件事按各自的格子拆开显示。规则见 app/services/event_lines.py。
+    unified = unify_line(conn, event_key, _classify, now)
+    if unified:
+        conn.execute(
+            "INSERT INTO topic_events (topic_id, event_type, metadata) "
+            "VALUES (?, 'event_line_unified', ?)",
+            (min(ids), json.dumps({**unified, "by": body.agent}, ensure_ascii=False)),
+        )
+
     conn.commit()
     conn.close()
-    return {"event_key": event_key, "merged": ids, "message": f"已把 {len(ids)} 条选题归为同一事件"}
+    return {"event_key": event_key, "merged": ids,
+            "unified": unified,
+            "message": f"已把 {len(ids)} 条选题归为同一事件"}
 
 
 class UnmergeRequest(BaseModel):

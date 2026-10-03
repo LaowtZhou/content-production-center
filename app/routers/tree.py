@@ -4,6 +4,14 @@
 - 这是主浏览入口，替代原来的"事件归并"页。
 - 默认不跨分类：分类由动词/动名词决定（app/verbs.py），事件线整线统一。
 - 格子（分类+地域+主体）里仍按 event_key 聚成事件线（同一件事的多条素材）。
+- 2026-10-03 追加三条展示规则：
+  1) **每一级都要能看到对应范围的主题**：选了分类就出该分类的全部素材，
+     再选地域/主体只是往里收窄 —— 不必一路点到第三级才有东西看。
+  2) 二级地域顺序**固定**为 中国 → 美国 → 其他（见 app/ordering.py）。
+  3) 三级主体按**首字母**排（英文按字母、中文按拼音首字母，见 app/ordering.py）。
+
+「周老师AI日记」是来源类：地域固定中国、三级主体是产出记录的 Agent
+（判定见 app/geo.py::resolve_geo），所以这一类的树天然只有"中国"一栏。
 
 数据只读；人工改分类/地域/主体走 PUT 接口（见 app/routers/topics.py）。
 """
@@ -15,6 +23,7 @@ from typing import Optional
 from fastapi import APIRouter, Query
 
 from app.config import get_db
+from app.ordering import REGION_ORDER, entity_letter, entity_sort_key
 from app.statuses import DEFAULT_PERIOD, is_valid_period, period_start
 from app.taxonomy import CATEGORIES
 
@@ -60,32 +69,40 @@ def build_tree(period: str = DEFAULT_PERIOD, cat: Optional[str] = None,
         } for c in CATEGORIES]
         total = sum(per_cat.values())
 
-        # 第二层：地域（选中分类后）
+        # 第二层：地域（选中分类后）。**固定顺序** 中国→美国→其他，不按条数排
+        # ——按条数排会随数据变动换位，找东西时位置不固定。
         regions: list[dict] = []
         if cat:
             w, p = _where(period, cat=cat)
             rows = conn.execute(
-                "SELECT region, COUNT(*) n FROM topics" + w
-                + " GROUP BY region ORDER BY n DESC", p
+                "SELECT region, COUNT(*) n FROM topics" + w + " GROUP BY region", p
             ).fetchall()
-            regions = [{"name": r["region"], "count": r["n"]} for r in rows]
+            by_region = {str(r["region"] or ""): r["n"] for r in rows}
+            regions = [{"name": rn, "count": by_region[rn]}
+                       for rn in REGION_ORDER if rn in by_region]
+            # 清单外的地域值也要列出来（宁可多一格，也不能让素材静默消失）。
+            regions += [{"name": rn, "count": by_region[rn]}
+                        for rn in sorted(rn for rn in by_region if rn not in REGION_ORDER)]
 
-        # 第三层：主体（选中地域后）
+        # 第三层：主体（选中地域后）。按**首字母**排：英文按字母、中文按拼音首字母，
+        # 同首字母内按拼音/字母序。见 app/ordering.py。
         entities: list[dict] = []
         if cat and region:
             w, p = _where(period, cat=cat, region=region)
             rows = conn.execute(
-                "SELECT entity, COUNT(*) n FROM topics" + w
-                + " GROUP BY entity ORDER BY n DESC", p
+                "SELECT entity, COUNT(*) n FROM topics" + w + " GROUP BY entity", p
             ).fetchall()
-            entities = [{"name": r["entity"], "count": r["n"]} for r in rows]
+            rows = sorted(rows, key=lambda r: entity_sort_key(r["entity"]))
+            entities = [{"name": r["entity"], "count": r["n"],
+                         "letter": entity_letter(r["entity"])} for r in rows]
 
-        # 格子里的素材：按 event_key 聚成事件线，未归并的单独列
+        # 范围内的素材：**只要选了分类就算**（不要求一路点到主体）。
+        # 每一级都能看到对应范围的主题：分类级=该分类全部，地域级=该地域，主体级=一格。
         lines: list[dict] = []
         loose: list[dict] = []
         nodes: list[dict] = []
         grid_total = 0
-        if cat and region and entity:
+        if cat:
             w, p = _where(period, cat=cat, region=region, entity=entity)
             rows = conn.execute(
                 "SELECT id, title, news_date, source_name, status, "

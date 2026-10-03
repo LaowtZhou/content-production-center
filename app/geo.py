@@ -400,6 +400,25 @@ def judge(title: str, full_text: str = "") -> tuple[str, str, str]:
     return OTHER, UNKNOWN_ENTITY, "none"
 
 
+def resolve_geo(title: str, full_text: str = "", category: str | None = None,
+                source_ref: str | None = None) -> tuple[str, str, str]:
+    """**地域/主体判定的唯一入口**（入库、启动迁移、补漏闸都走这里）。
+
+    为什么要多这一层：不是所有类别都按"新闻里的公司/政府"分格。
+    「周老师AI日记」是周老师自己的实操记录 —— 地域固定中国（他写的），
+    三级主体是**干活的 Agent**（Codex / WorkBuddy …），来源路径里就写着，
+    不需要、也不该去正文里猜哪家公司被提到了。
+
+    判定顺序：来源类（日记）优先，其余落回内容判定 judge()。
+    反着判一次：日记命中时**绝不调用** judge()，否则"日记里提到 OpenAI"
+    会被塞进「美国 / OpenAI」格子里，跟城市里的新闻混在一起。
+    """
+    from app.taxonomy import DIARY_NAME, DIARY_REGION, diary_agent
+    if category == DIARY_NAME:
+        return DIARY_REGION, diary_agent(source_ref), "agent"
+    return judge(title, full_text)
+
+
 def has_gov_subject(text: str) -> bool:
     """文本里是否出现**政府机构或政府人物**。
 

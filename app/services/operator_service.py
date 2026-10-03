@@ -319,9 +319,10 @@ def _create_editorial_topic(conn, cycle_id: str, proposal: dict[str, Any]) -> di
         tags.append("主编主动选题")
     # 统一走 app.verbs.classify（唯一判定实现），不要退回 app.taxonomy.classify。
     from app.verbs import classify
-    from app.geo import judge as judge_geo
+    from app.geo import resolve_geo
     category = classify(title, summary, source_ref)
-    region, entity, _kind = judge_geo(title, raw_content or summary)
+    # 地域/主体走统一入口：日记类固定「中国 + Agent 名」，其余按内容判。
+    region, entity, _kind = resolve_geo(title, raw_content or summary, category, source_ref)
     cur = conn.execute(
         """INSERT INTO topics (title, summary, raw_content, source_type, source_ref, tags, status,
         category, region, entity, created_at, updated_at)

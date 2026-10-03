@@ -25,7 +25,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.init_db import get_db  # noqa: E402
-from app.geo import judge  # noqa: E402
+from app.geo import resolve_geo  # noqa: E402
 from app.verbs import classify  # noqa: E402
 
 
@@ -40,13 +40,15 @@ def main() -> int:
     rows = conn.execute(
         "SELECT id, title, COALESCE(summary,'') AS summary, "
         "COALESCE(raw_content,'') AS raw_content, "
-        "COALESCE(category,'') AS category FROM topics" + where
+        "COALESCE(category,'') AS category, "
+        "COALESCE(source_ref,'') AS sref FROM topics" + where
     ).fetchall()
 
     changes: Counter = Counter()
     for row in rows:
-        region, entity, _kind = judge(row["title"], row["raw_content"])
-        new_cat = classify(row["title"], row["summary"])
+        new_cat = classify(row["title"], row["summary"], row["sref"])
+        # 统一入口：日记类固定「中国 + Agent 名」，其余按内容判定。
+        region, entity, _kind = resolve_geo(row["title"], row["raw_content"], new_cat, row["sref"])
         if new_cat != row["category"]:
             changes[f"{row['category'] or '(空)'} -> {new_cat}"] += 1
         if args.apply:

@@ -657,20 +657,21 @@ def _migrate_legacy_data(conn):
         "SELECT value FROM system_settings WHERE key = 'tree_v1_migrated'"
     ).fetchone()
     if not marked:
-        from app.geo import judge as _judge
+        from app.geo import resolve_geo as _judge
         from app.verbs import classify as _vclassify
 
         rows = conn.execute(
             "SELECT id, title, COALESCE(summary,'') AS summary, category, "
-            "COALESCE(event_key,'') AS ek FROM topics"
+            "COALESCE(event_key,'') AS ek, COALESCE(source_ref,'') AS sref "
+            "FROM topics"
         ).fetchall()
 
         line_titles: dict[str, list] = {}
         line_ids: dict[str, list] = {}
         changed = 0
         for row in rows:
-            region, entity, _kind = _judge(row["title"], row["summary"])
-            new_cat = _vclassify(row["title"], row["summary"])
+            new_cat = _vclassify(row["title"], row["summary"], row["sref"])
+            region, entity, _kind = _judge(row["title"], row["summary"], new_cat, row["sref"])
             conn.execute(
                 "UPDATE topics SET region = ?, entity = ?, category = ?, updated_at = ? WHERE id = ?",
                 (region, entity, new_cat, now, row["id"]),
@@ -765,35 +766,53 @@ def _migrate_legacy_data(conn):
     # 因此**不占 CLASSIFY_VERSION**（走版本号会触发全库重判，连带动到无关素材），
     # 而是每次启动扫一遍 source_ref：命中目录且分类不对的才改 —— 天然幂等。
     # 顺带兜底：将来新增的入库路径若漏传 source_ref，这里也会把它纠回来。
-    from app.taxonomy import DIARY_NAME, is_diary_source
+    from app.taxonomy import (DIARY_NAME, DIARY_REGION, diary_agent,
+                              is_diary_source)
 
     # 判据自检：坏掉的判据不许静默通过（判据坏 = 整批素材永远归不了口，且没人发现）。
     # 一正一反两个样例：日记目录必须命中；openclaw 抓的外部 "codex" 新闻必须不命中。
+    # 第三例是"换 Agent"的回归靶子：WorkBuddy 的挖掘目录也必须命中（不能只认 Codex）。
     _probe_hit = is_diary_source(r"C:\x\Codex昨日工作挖掘\20260903-Codex昨日工作挖掘.md")
+    _probe_hit2 = is_diary_source(r"C:\x\WorkBuddy昨日工作挖掘\20261003-WorkBuddy昨日工作挖掘.md")
     _probe_miss = is_diary_source(
         r"C:\x\.openclaw\workspace\ai-news\2026-06-08\2026-06-08-openai-codex-chatgpt.md")
-    if not (_probe_hit and not _probe_miss):
-        print(f"【警告】日记来源判据自检未通过（hit={_probe_hit} miss={_probe_miss}），"
-              f"本轮跳过来源归口。")
+    _probe_agent = diary_agent(r"C:\x\WorkBuddy昨日工作挖掘\20261003-WorkBuddy昨日工作挖掘.md")
+    if not (_probe_hit and _probe_hit2 and not _probe_miss and _probe_agent == "WorkBuddy"):
+        print(f"【警告】日记来源判据自检未通过（codex={_probe_hit} workbuddy={_probe_hit2} "
+              f"miss={_probe_miss} agent={_probe_agent}），本轮跳过来源归口。")
     else:
         diary_fixed = 0
+        # 一次扫描同时落定**三列**：分类、地域、主体。
+        # 「周老师AI日记」的地域固定中国（他写的），主体 = 干活的 Agent（来源路径里写着）。
+        # 只要这三列里有任何一列不对就修，天然幂等。
         for row in conn.execute(
-            "SELECT id, COALESCE(source_ref,'') AS sref, COALESCE(category,'') AS category "
+            "SELECT id, COALESCE(source_ref,'') AS sref, COALESCE(category,'') AS category, "
+            "COALESCE(region,'') AS region, COALESCE(entity,'') AS entity "
             "FROM topics WHERE COALESCE(source_ref,'') <> ''"
         ).fetchall():
-            if not is_diary_source(row["sref"]) or row["category"] == DIARY_NAME:
+            if not is_diary_source(row["sref"]):
                 continue
-            conn.execute("UPDATE topics SET category = ?, updated_at = ? WHERE id = ?",
-                         (DIARY_NAME, now, row["id"]))
+            want = (DIARY_NAME, DIARY_REGION, diary_agent(row["sref"]))
+            if (row["category"], row["region"], row["entity"]) == want:
+                continue
+            conn.execute(
+                "UPDATE topics SET category = ?, region = ?, entity = ?, updated_at = ? "
+                "WHERE id = ?",
+                (want[0], want[1], want[2], now, row["id"]),
+            )
             conn.execute(
                 "INSERT INTO topic_events (topic_id, event_type, metadata) "
                 "VALUES (?, 'category_reclassified', ?)",
-                (row["id"], json.dumps({"from": row["category"], "to": DIARY_NAME,
-                                        "rule": "diary-source"}, ensure_ascii=False)),
+                (row["id"], json.dumps(
+                    {"from": row["category"], "to": DIARY_NAME,
+                     "region": {"from": row["region"], "to": want[1]},
+                     "entity": {"from": row["entity"], "to": want[2]},
+                     "rule": "diary-source"}, ensure_ascii=False)),
             )
             diary_fixed += 1
         if diary_fixed:
-            print(f"日记来源归口：{diary_fixed} 条素材归入「{DIARY_NAME}」")
+            print(f"日记来源归口：{diary_fixed} 条素材归入「{DIARY_NAME}」"
+                  f"（地域 {DIARY_REGION} · 主体 = Agent 名）")
 
     # 地域/主体判定：规则自带版本号（app.geo.JUDGE_VERSION），版本变了才全库重判。
     # v1 标题→摘要；v2 标题→全文（按实体出现次数，≥2 次才认，宁可判"未识别"也不误挂）；
@@ -801,21 +820,24 @@ def _migrate_legacy_data(conn):
     #    Cohere（加拿大）此前误挂"美国"。
     # 注意：版本升级会覆盖全表 region/entity。目前页面只读、没有人工修正入口，
     # 所以安全；将来开放人工修正时，必须加"人工字段"标记并在重判时跳过。
-    from app.geo import JUDGE_VERSION, judge as _judge
+    # 走**统一入口** resolve_geo（不是裸 judge）：日记类的地域/主体由来源决定
+    # （中国 + Agent 名），全库重判时不能被正文里的公司名覆盖掉。
+    from app.geo import JUDGE_VERSION, resolve_geo as _resolve_geo
     stored_ver = conn.execute(
         "SELECT value FROM system_settings WHERE key = 'geo_judge_version'"
     ).fetchone()
     if not stored_ver or str(stored_ver["value"]) != str(JUDGE_VERSION):
         rows2 = conn.execute(
             "SELECT id, title, COALESCE(raw_content,'') AS rc, COALESCE(region,'') AS region, "
-            "COALESCE(entity,'') AS entity, COALESCE(event_key,'') AS ek, news_date "
+            "COALESCE(entity,'') AS entity, COALESCE(event_key,'') AS ek, news_date, "
+            "COALESCE(category,'') AS category, COALESCE(source_ref,'') AS sref "
             "FROM topics"
         ).fetchall()
 
         moved = 0
         line_rows: dict[str, list] = {}
         for row in rows2:
-            nr, ne, _k = _judge(row["title"], row["rc"])
+            nr, ne, _k = _resolve_geo(row["title"], row["rc"], row["category"], row["sref"])
             if (nr, ne) != (row["region"], row["entity"]):
                 moved += 1
             conn.execute(
@@ -852,12 +874,14 @@ def _migrate_legacy_data(conn):
     # INSERT，任何一条漏了列，新素材就会悄悄消失。这里每次启动扫一遍，只处理
     # 漏写的行，是"新素材进不了树"这类问题的兜底，不替代入库处的正常写入。
     orphans = conn.execute(
-        "SELECT id, title, COALESCE(raw_content,'') AS rc, COALESCE(summary,'') AS sm "
+        "SELECT id, title, COALESCE(raw_content,'') AS rc, COALESCE(summary,'') AS sm, "
+        "COALESCE(category,'') AS category, COALESCE(source_ref,'') AS sref "
         "FROM topics WHERE COALESCE(region,'') = '' OR COALESCE(entity,'') = ''"
     ).fetchall()
     if orphans:
         for row in orphans:
-            nr, ne, _k = _judge(row["title"], row["rc"] or row["sm"])
+            nr, ne, _k = _resolve_geo(
+                row["title"], row["rc"] or row["sm"], row["category"], row["sref"])
             conn.execute(
                 "UPDATE topics SET region = ?, entity = ?, updated_at = ? WHERE id = ?",
                 (nr, ne, now, row["id"]),

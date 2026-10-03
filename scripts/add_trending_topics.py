@@ -30,7 +30,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.init_db import get_db  # noqa: E402
 from app.verbs import classify  # noqa: E402
-from app.geo import judge  # noqa: E402
+from app.geo import resolve_geo  # noqa: E402
 
 
 def _load(path: Path) -> list[dict]:
@@ -64,8 +64,9 @@ def main() -> int:
             continue
         summary = row.get("summary") or ""
         raw = row.get("raw_content") or ""
-        region, entity, _kind = judge(title, raw)
         category = classify(title, summary)
+        # 统一入口：日记类固定「中国 + Agent 名」，其余按内容判定。
+        region, entity, _kind = resolve_geo(title, raw, category, None)
         if args.apply:
             conn.execute(
                 "INSERT INTO topics (title, summary, raw_content, source_type, status, "

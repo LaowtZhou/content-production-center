@@ -393,15 +393,17 @@ def process_file(filepath: str) -> int:
         # 此前这里 import 的是 app.taxonomy.classify（名词弱信号），与启动重判
         # 使用的规则不是同一套，导致新素材入库分类与重判结果长期不一致。
         from app.verbs import classify
-        from app.geo import judge as judge_geo
-        # source_ref（filepath）一并传入：来自「Codex昨日工作挖掘」目录的素材
+        from app.geo import resolve_geo
+        # source_ref（filepath）一并传入：来自「XX昨日工作挖掘」目录的素材
         # 按来源归入「周老师AI日记」，不参与内容判定。
         category = classify(parsed["title"] or "", parsed["summary"] or "", filepath)
-        # 地域/主体必须与分类同一次落定：判定规则是「标题优先，标题认不出才读全文」。
-        # 漏写这两列 = 新素材进不了归类树，所以入库时就算，不留给事后迁移。
-        region, entity, _kind = judge_geo(
+        # 地域/主体必须与分类同一次落定，并且**必须把分类和来源一起传进去**：
+        # 日记类的地域固定中国、主体取 Agent 名，不看正文。漏写这两列 =
+        # 新素材进不了归类树，所以入库时就算，不留给事后迁移。
+        region, entity, _kind = resolve_geo(
             parsed["title"] or "",
             parsed["raw_content"] or parsed["summary"] or "",
+            category, filepath,
         )
         cur = conn.execute(
             "INSERT INTO topics (title, summary, raw_content, source_type, source_ref, "
@@ -470,7 +472,11 @@ def process_file(filepath: str) -> int:
 def scan_directory(directory: str) -> dict:
     """
     递归扫描目录中的所有未处理MD文件
-    跳过 _duplicates 和 daily-images 目录
+    跳过 _duplicates、daily-images 和 03-projects 目录
+
+    `03-projects`（周老师 2026-10-03 加）——那是**项目工作目录**，不是新闻来源。
+    此前它有两条文件（DseWiki 多 Agent 共享通道）被当成 AI 新闻抓进选题池，
+    跟外部新闻混在一个树上。项目自己的过程文件永远不该进选题池，所以在这里挡掉。
     """
     if not os.path.isdir(directory):
         return {"error": f"目录不存在: {directory}"}
@@ -478,13 +484,16 @@ def scan_directory(directory: str) -> dict:
     total_files = 0
     total_created = 0
     total_skipped = 0
+    skipped_total = 0
     errors = []
-    skipped_dirs = {"_duplicates", "daily-images"}
+    skipped_dirs = {"_duplicates", "daily-images", "03-projects"}
 
     for root, dirs, files in os.walk(directory):
         # 跳过指定目录
+        before = len(dirs)
         dirs[:] = [d for d in dirs if d not in skipped_dirs and not d.startswith("daily-images-")]
-        
+        skipped_total += before - len(dirs)
+
         for filename in sorted(files):
             if not filename.endswith(".md"):
                 continue
@@ -504,5 +513,6 @@ def scan_directory(directory: str) -> dict:
         "total_files": total_files,
         "topics_created": total_created,
         "topics_skipped": total_skipped,
+        "skipped_dirs": skipped_total,
         "errors": errors,
     }

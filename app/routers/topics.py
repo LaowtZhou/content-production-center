@@ -466,11 +466,15 @@ def create_topic(topic: TopicCreate):
     # 类别：调用方明确指定且合法则采用，否则自动归类。
     # 统一走 app.verbs.classify（唯一判定实现），不要退回 app.taxonomy.classify。
     from app.verbs import classify
-    from app.geo import judge as judge_geo
+    from app.geo import resolve_geo
     category = (topic.category if is_valid_category(topic.category)
                 else classify(topic.title, topic.summary, topic.source_ref))
     # 地域/主体与分类同一次落定，否则手动建的选题进不了归类树。
-    region, entity, _kind = judge_geo(topic.title or "", topic.raw_content or topic.summary or "")
+    # 走统一入口：日记类固定「中国 + Agent 名」，其余按内容判。
+    region, entity, _kind = resolve_geo(
+        topic.title or "", topic.raw_content or topic.summary or "",
+        category, topic.source_ref,
+    )
     cur = conn.execute(
         "INSERT INTO topics (title, summary, raw_content, source_type, source_ref, "
         "tags, news_date, published_date, source_name, source_level, source_author, "

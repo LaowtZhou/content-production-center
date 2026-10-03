@@ -6,9 +6,11 @@
   2026-10-03 周老师授权新增第 8 类「行业讨论」：用于收编**没有单一主体的**
   观点、评论、圆桌、盘点、趋势综述——此前这类内容无处可去，全被判"未识别"，
   在归类树里翻不到。
-  2026-10-03 周老师授权新增第 9 类「周老师AI日记」：收编 Codex 每日工作挖掘
+  2026-10-03 周老师授权新增第 9 类「周老师AI日记」：收编每日工作挖掘
   （记录他当天在自己系统里踩的坑、修的问题）。这类是**自己的实操记录**，
   不是外部 AI 新闻，同类内容此前散落在各个分类里。
+  该类的二级/三级不按新闻口径走：地域固定「中国」，三级主体 = 干活的 Agent
+  （Codex / WorkBuddy / …），判定见 is_diary_source / diary_agent。
 - 分类只做"归口"，不做价值判断；分类结果写入 topics.category。
 - 历史回填、增量自动分类、Agent 覆盖，全部收敛到 classify() / is_valid_category()，
   同一套规则只允许有一份实现。
@@ -56,20 +58,44 @@ PRIORITY = ["政策与监管", "AI 安全与风险", "Agent 与智能体",
 # 判定依据是**来源路径**，不是内容。
 # 这批素材是周老师让 Codex 做的每日工作挖掘（记录他当天在自己系统里踩的坑、
 # 修的问题），跟"外部 AI 新闻"是两种东西 —— 用关键词猜必然张冠李戴。
+#
+# 2026-10-03 周老师补充（两条硬规则）：
+#   1) 「来源标记」从 "Codex昨日工作挖掘" 放宽为 "昨日工作挖掘" ——
+#      将来换 WorkBuddy 做每日挖掘时，`WorkBuddy昨日工作挖掘` 目录也要能自动归进来，
+#      不能每换一个 Agent 就回来改一次代码。
+#   2) 日记类下面**不分地域**（全是周老师自己写的，地域固定中国），
+#      三级主体 = 产出这条记录的 Agent（Codex / WorkBuddy / …）。
+#      即「主体」对日记类而言不是"新闻里那家公司"，而是"谁干的活"。
 DIARY_NAME = "周老师AI日记"
-DIARY_SOURCE_MARKER = "Codex昨日工作挖掘"
+DIARY_REGION = "中国"
+DIARY_SOURCE_MARKER = "昨日工作挖掘"
+DIARY_AGENT_UNKNOWN = "未识别"
+
 _DIARY_SOURCE_RE = re.compile(re.escape(DIARY_SOURCE_MARKER), re.I)
+# Agent 名 = 紧挨在「昨日工作挖掘」前面那段英文字符（Codex / WorkBuddy / GPT5…）。
+# 文件名是 `20260903-Codex昨日工作挖掘.md`，正则从字母开头处匹配，不会把日期吃进来。
+_DIARY_AGENT_RE = re.compile(r"([A-Za-z][A-Za-z0-9_\-]*)\s*" + re.escape(DIARY_SOURCE_MARKER))
 
 
 def is_diary_source(source_ref: str | None) -> bool:
-    """来源路径是否来自「Codex昨日工作挖掘」目录。
+    """来源路径是否来自某个「XX昨日工作挖掘」目录。
 
     这是来源判定，不读标题正文，所以不会误判。
     反着判一次（加保护）：openclaw 抓的
     `...\\ai-news\\2026-06-08\\2026-06-08-openai-codex-chatgpt.md` 含 "Codex"
-    但**不是**日记来源，必须返回 False —— 所以只认目录名，不认 "Codex"。
+    但**不是**日记来源，必须返回 False —— 所以只认"昨日工作挖掘"这个目录标记，
+    不认 "Codex"。
     """
     return bool(source_ref) and bool(_DIARY_SOURCE_RE.search(str(source_ref)))
+
+
+def diary_agent(source_ref: str | None) -> str:
+    """从来源路径里取出产出这条记录的 Agent 名（日记类的三级主体）。
+
+    认不出时返回 DIARY_AGENT_UNKNOWN，绝不瞎猜。
+    """
+    m = _DIARY_AGENT_RE.search(str(source_ref or ""))
+    return m.group(1) if m else DIARY_AGENT_UNKNOWN
 
 
 # 弱信号单独归口所需的最低分（低于此进"其他"，避免硬塞）

@@ -78,8 +78,9 @@
             <p style="font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--acc-d);margin:0 0 2px;">Taxonomy Tree</p>
             <h1 class="hero-title" style="margin:0;">归类</h1>
             <p style="font-size:12px;color:var(--t2);margin:6px 0 0;">
-                三层往下走：<b>分类</b>（这件事属于哪一块，按动词判定）→ <b>地域</b>（中国 / 美国 / 其他）→ <b>主体</b>（政府机构或具体公司）。
-                走到底就能看到这个格子里的事，同一件事的历次报道聚成一条线，按时间挂在同一条轴上。
+                三层往下走：<b>分类</b>（这件事属于哪一块，按动词判定）→ <b>地域</b>（固定顺序：中国 / 美国 / 其他）→ <b>主体</b>（政府机构或具体公司，按字母和拼音首字母排）。
+                <b>每一级都能直接看主题</b>——选了分类就出该分类的全部素材，再往下只是往里收窄。
+                同一件事的历次报道聚成一条线，按时间挂在同一条轴上。
             </p>
         </div>
         <div class="seg">
@@ -139,9 +140,12 @@
             {% if not region %}
             <p style="font-size:12px;color:var(--t3);padding:10px;margin:0;">← 先选中间的地域</p>
             {% elif not entities %}
-            <p style="font-size:12px;color:var(--t3);padding:10px;margin:0;">该格子没有素材</p>
+            <p style="font-size:12px;color:var(--t3);padding:10px;margin:0;">这个地域在当前周期里没有素材</p>
             {% else %}
             {% for e in entities %}
+            {% if loop.first or loop.previtem.letter != e.letter %}
+            <div style="font-size:10px;font-weight:700;color:var(--t3);letter-spacing:.1em;padding:7px 10px 1px;">{{ e.letter if e.letter != '~' else '#' }}</div>
+            {% endif %}
             <a href="/tree?period={{ period }}&cat={{ cat|urlencode }}&region={{ region|urlencode }}&entity={{ e.name|urlencode }}"
                style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 10px;border-radius:8px;text-decoration:none;font-size:12px;{% if entity == e.name %}background:var(--acc);color:#fff;{% else %}color:var(--t1);{% endif %}">
                 <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ e.name }}</span>
@@ -153,13 +157,14 @@
     </div>
 </div>
 
-<!-- ===== 格子内容：一条时间轴 ===== -->
-{% if entity %}
+<!-- ===== 范围内的素材：一条时间轴（每一级都有） ===== -->
+{% if cat %}
 <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 0 12px;flex-wrap:wrap;">
     <h2 style="font-size:15px;font-weight:700;margin:0;color:var(--t1);">
-        {{ cat }} · {{ region }} · {{ entity }}
+        {{ cat }}{% if region %} · {{ region }}{% else %} · 全部地域{% endif %}{% if entity %} · {{ entity }}{% endif %}
         <span style="font-size:12px;font-weight:400;color:var(--t3);">
             共 {{ grid_total }} 条 · {{ lines|length }} 条线 + {{ loose|length }} 条散素材
+            {% if not entity %}· 继续往下选可收窄{% endif %}
         </span>
     </h2>
     <span style="font-size:11px;color:var(--t3);">勾选多条 → 归为同一件事</span>
@@ -207,19 +212,11 @@
 </div>
 {% else %}
 <div class="hero" style="text-align:center;padding:40px 20px;">
-    <p style="color:var(--t2);font-size:13px;margin:0;">这个格子在当前周期里没有素材。</p>
+    <p style="color:var(--t2);font-size:13px;margin:0;">这个范围在当前周期里没有素材。</p>
     <p style="font-size:12px;color:var(--t3);margin-top:8px;">换个周期，或回到上层换个分类。</p>
 </div>
 {% endif %}
 
-{% elif cat and region %}
-<div class="hero" style="text-align:center;padding:36px 20px;">
-    <p style="color:var(--t2);font-size:13px;margin:0;">再选一个主体，就能看到这个格子里的事。</p>
-</div>
-{% elif cat %}
-<div class="hero" style="text-align:center;padding:36px 20px;">
-    <p style="color:var(--t2);font-size:13px;margin:0;">再选一个地域（中国 / 美国 / 其他）。</p>
-</div>
 {% else %}
 <div class="hero" style="text-align:center;padding:36px 20px;">
     <p style="color:var(--t2);font-size:13px;margin:0;">从左边选一个分类开始。左边数字 = 该分类在当前周期里的素材条数。</p>

@@ -42,7 +42,7 @@ CATEGORIES = [
     {"key": "policy",   "name": "政策与监管",     "desc": "法规、监管、诉讼、禁令、标准、政府动作"},
     {"key": "app",      "name": "AI 工具与应用",  "desc": "工具、产品、应用、插件、Copilot、办公提效"},
     {"key": "discuss",  "name": "行业讨论",       "desc": "观点、评论、圆桌、盘点、趋势综述、访谈辩论"},
-    {"key": "diary",    "name": "周老师AI日记",   "desc": "Codex 每日工作挖掘：自己当天踩的坑、修的问题、实操记录"},
+    {"key": "diary",    "name": "周老师AI日记",   "desc": "每日工作挖掘：自己当天踩的坑、修的问题、实操记录（按来源目录归口）"},
     {"key": "other",    "name": "其他",           "desc": "不属于以上各类"},
 ]
 

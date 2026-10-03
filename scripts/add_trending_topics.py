@@ -63,7 +63,8 @@ def main() -> int:
             skipped += 1
             continue
         summary = row.get("summary") or ""
-        region, entity, _kind = judge(title, summary)
+        raw = row.get("raw_content") or ""
+        region, entity, _kind = judge(title, raw)
         category = classify(title, summary)
         if args.apply:
             conn.execute(

@@ -465,18 +465,21 @@ def create_topic(topic: TopicCreate):
     now = datetime.now().isoformat()
     # 类别：调用方明确指定且合法则采用，否则自动归类。
     from app.taxonomy import classify
+    from app.geo import judge as judge_geo
     category = topic.category if is_valid_category(topic.category) else classify(topic.title, topic.summary)
+    # 地域/主体与分类同一次落定，否则手动建的选题进不了归类树。
+    region, entity, _kind = judge_geo(topic.title or "", topic.raw_content or topic.summary or "")
     cur = conn.execute(
         "INSERT INTO topics (title, summary, raw_content, source_type, source_ref, "
         "tags, news_date, published_date, source_name, source_level, source_author, "
-        "original_url, category, status, created_at, updated_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "original_url, category, status, region, entity, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (topic.title, topic.summary, topic.raw_content,
          topic.source_type, topic.source_ref,
          json.dumps(topic.tags, ensure_ascii=False),
          topic.news_date, topic.published_date, topic.source_name,
          topic.source_level, topic.source_author, topic.original_url,
-         category, DEFAULT_USAGE,
+         category, DEFAULT_USAGE, region, entity,
          now, now)
     )
     topic_id = cur.lastrowid

@@ -708,6 +708,75 @@ def _migrate_legacy_data(conn):
         print(f"三级树迁移完成：{len(rows)} 条打地域/主体标签，"
               f"分类按动词重判改动 {changed} 条，{unified} 条事件线统一分类")
 
+    # 地域/主体判定：规则自带版本号（app.geo.JUDGE_VERSION），版本变了才全库重判。
+    # v1 标题→摘要；v2 标题→全文（按实体出现次数，≥2 次才认，宁可判"未识别"也不误挂）；
+    # v3 主体词典补齐常见公司/机构（微软、谷歌、小红书…），并纠正 Stability AI（英国）、
+    #    Cohere（加拿大）此前误挂"美国"。
+    # 注意：版本升级会覆盖全表 region/entity。目前页面只读、没有人工修正入口，
+    # 所以安全；将来开放人工修正时，必须加"人工字段"标记并在重判时跳过。
+    from app.geo import JUDGE_VERSION, judge as _judge
+    stored_ver = conn.execute(
+        "SELECT value FROM system_settings WHERE key = 'geo_judge_version'"
+    ).fetchone()
+    if not stored_ver or str(stored_ver["value"]) != str(JUDGE_VERSION):
+        rows2 = conn.execute(
+            "SELECT id, title, COALESCE(raw_content,'') AS rc, COALESCE(region,'') AS region, "
+            "COALESCE(entity,'') AS entity, COALESCE(event_key,'') AS ek, news_date "
+            "FROM topics"
+        ).fetchall()
+
+        moved = 0
+        line_rows: dict[str, list] = {}
+        for row in rows2:
+            nr, ne, _k = _judge(row["title"], row["rc"])
+            if (nr, ne) != (row["region"], row["entity"]):
+                moved += 1
+            conn.execute(
+                "UPDATE topics SET region = ?, entity = ?, updated_at = ? WHERE id = ?",
+                (nr, ne, now, row["id"]),
+            )
+            if row["ek"]:
+                line_rows.setdefault(row["ek"], []).append(row)
+
+        # 事件线必须整线待在同一格子里：以最早一条（与树页线名一致）为准。
+        unified2 = 0
+        for ek, members in line_rows.items():
+            if len(members) < 2:
+                continue
+            members.sort(key=lambda r: (r["news_date"] or "", r["id"]))
+            rep = members[0]
+            for m in members:
+                conn.execute(
+                    "UPDATE topics SET region = ?, entity = ? WHERE id = ?",
+                    (rep["region"], rep["entity"], m["id"]),
+                )
+            unified2 += 1
+
+        conn.execute(
+            "INSERT OR REPLACE INTO system_settings (key, value, updated_at) "
+            "VALUES ('geo_judge_version', ?, ?)",
+            (str(JUDGE_VERSION), now),
+        )
+        print(f"地域/主体判定 v{JUDGE_VERSION} 完成：{len(rows2)} 条重判，"
+              f"改动 {moved} 条，{unified2} 条事件线统一地域/主体")
+
+    # 补漏闸：region/entity 为空的行意味着它在归类树里查不到（树按这两列分格）。
+    # 存量由上面的版本迁移处理，但抓取、手动创建、Codex 入库是三条彼此独立的
+    # INSERT，任何一条漏了列，新素材就会悄悄消失。这里每次启动扫一遍，只处理
+    # 漏写的行，是"新素材进不了树"这类问题的兜底，不替代入库处的正常写入。
+    orphans = conn.execute(
+        "SELECT id, title, COALESCE(raw_content,'') AS rc, COALESCE(summary,'') AS sm "
+        "FROM topics WHERE COALESCE(region,'') = '' OR COALESCE(entity,'') = ''"
+    ).fetchall()
+    if orphans:
+        for row in orphans:
+            nr, ne, _k = _judge(row["title"], row["rc"] or row["sm"])
+            conn.execute(
+                "UPDATE topics SET region = ?, entity = ?, updated_at = ? WHERE id = ?",
+                (nr, ne, now, row["id"]),
+            )
+        print(f"地域/主体补漏：{len(orphans)} 条此前未打标签的选题已补齐")
+
     conn.commit()
 
 

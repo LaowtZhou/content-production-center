@@ -317,10 +317,15 @@ def _create_editorial_topic(conn, cycle_id: str, proposal: dict[str, Any]) -> di
     tags = [str(tag).strip() for tag in tags if str(tag).strip()][:12]
     if "主编主动选题" not in tags:
         tags.append("主编主动选题")
+    from app.taxonomy import classify
+    from app.geo import judge as judge_geo
+    category = classify(title, summary)
+    region, entity, _kind = judge_geo(title, raw_content or summary)
     cur = conn.execute(
-        """INSERT INTO topics (title, summary, raw_content, source_type, source_ref, tags, status, created_at, updated_at)
-        VALUES (?, ?, ?, 'codex_operator', ?, ?, 'unused', ?, ?)""",
-        (title, summary, raw_content, source_ref, _json(tags), timestamp, timestamp),
+        """INSERT INTO topics (title, summary, raw_content, source_type, source_ref, tags, status,
+        category, region, entity, created_at, updated_at)
+        VALUES (?, ?, ?, 'codex_operator', ?, ?, 'unused', ?, ?, ?, ?, ?)""",
+        (title, summary, raw_content, source_ref, _json(tags), category, region, entity, timestamp, timestamp),
     )
     topic_id = cur.lastrowid
     conn.execute(

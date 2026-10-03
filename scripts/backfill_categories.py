@@ -39,12 +39,13 @@ def main() -> int:
     where = "" if args.all else " WHERE COALESCE(category,'') = ''"
     rows = conn.execute(
         "SELECT id, title, COALESCE(summary,'') AS summary, "
+        "COALESCE(raw_content,'') AS raw_content, "
         "COALESCE(category,'') AS category FROM topics" + where
     ).fetchall()
 
     changes: Counter = Counter()
     for row in rows:
-        region, entity, _kind = judge(row["title"], row["summary"])
+        region, entity, _kind = judge(row["title"], row["raw_content"])
         new_cat = classify(row["title"], row["summary"])
         if new_cat != row["category"]:
             changes[f"{row['category'] or '(空)'} -> {new_cat}"] += 1

@@ -390,13 +390,21 @@ def process_file(filepath: str) -> int:
         # 创建选题
         now = datetime.now().isoformat()
         from app.taxonomy import classify
+        from app.geo import judge as judge_geo
         category = classify(parsed["title"] or "", parsed["summary"] or "")
+        # 地域/主体必须与分类同一次落定：判定规则是「标题优先，标题认不出才读全文」。
+        # 漏写这两列 = 新素材进不了归类树，所以入库时就算，不留给事后迁移。
+        region, entity, _kind = judge_geo(
+            parsed["title"] or "",
+            parsed["raw_content"] or parsed["summary"] or "",
+        )
         cur = conn.execute(
             "INSERT INTO topics (title, summary, raw_content, source_type, source_ref, "
             "source_id, source_delivered_at, status, tags, created_at, updated_at, "
-            "source_name, source_level, source_author, published_date, news_date, original_url, category) "
+            "source_name, source_level, source_author, published_date, news_date, original_url, category, "
+            "region, entity) "
             "VALUES (?, ?, ?, 'openclaw', ?, ?, ?, ?, '[]', ?, ?, "
-            "?, ?, ?, ?, ?, ?, ?)",
+            "?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 parsed["title"],
                 parsed["summary"],
@@ -413,6 +421,8 @@ def process_file(filepath: str) -> int:
                 fname_info["news_date"],
                 parsed["original_url"],
                 category,
+                region,
+                entity,
             )
         )
         topic_id = cur.lastrowid
